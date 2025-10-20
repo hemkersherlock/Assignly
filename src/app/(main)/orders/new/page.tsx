@@ -9,31 +9,41 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { UploadCloud, File as FileIcon, X, Loader2, Info, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { mockUsers } from "@/lib/mock-data";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import * as pdfjs from 'pdfjs-dist';
+import { useAuth as useFirebaseAuth } from "@/firebase";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { v4 as uuidv4 } from 'uuid';
+
 
 // Configure the worker for pdf.js
 if (typeof window !== 'undefined') {
   pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 }
 
+interface FileUploadProgress {
+    fileName: string;
+    progress: number;
+    error?: string;
+}
 
-// Mock current user
-const currentUser = mockUsers.find(u => u.role === 'student');
-
-function FilePreview({ file, onRemove, isSubmitting }: { file: File, onRemove: () => void, isSubmitting: boolean }) {
+function FilePreview({ file, onRemove, isSubmitting, progress }: { file: File, onRemove: () => void, isSubmitting: boolean, progress: number | null }) {
     const isImage = file.type.startsWith('image/');
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-    useMemo(() => {
+    useEffect(() => {
         if (isImage) {
             const reader = new FileReader();
             reader.onloadend = () => {
                 setPreviewUrl(reader.result as string);
             };
             reader.readAsDataURL(file);
+        }
+        return () => {
+            if (previewUrl) {
+                URL.revokeObjectURL(previewUrl);
+            }
         }
     }, [file, isImage]);
 
@@ -45,6 +55,11 @@ function FilePreview({ file, onRemove, isSubmitting }: { file: File, onRemove: (
                 <div className="flex flex-col items-center gap-2 text-muted-foreground p-2">
                     <FileIcon className="h-8 w-8" />
                     <span className="text-xs font-medium text-center break-all">{file.name}</span>
+                </div>
+            )}
+             {progress !== null && progress < 100 && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+                    <Progress value={progress} className="w-10/12 h-2" />
                 </div>
             )}
             <Button
@@ -66,8 +81,11 @@ export default function NewOrderPage() {
   const [orderType, setOrderType] = useState<'assignment' | 'practical'>('assignment');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useFirebaseAuth(); // Using Firebase auth context
 
   const totalPageCount = useMemo(() => {
     return files.reduce((acc, file) => acc + (pageCounts[file.name] || 0), 0);
@@ -81,7 +99,7 @@ export default function NewOrderPage() {
             return pdf.numPages;
         } catch (error) {
             console.error("Error reading PDF:", error);
-            toast({ variant: "destructive", title: "Could not read PDF file." });
+            toast({ variant: "destructive", title: `Could not read ${file.name}.` });
             return 1; // Default to 1 page on error
         }
     }
@@ -89,28 +107,22 @@ export default function NewOrderPage() {
   }, [toast]);
 
   useEffect(() => {
-    const processFiles = async () => {
-        const newPageCounts: Record<string, number> = {};
-        let hasNewCounts = false;
-        for (const file of files) {
-            if (!(file.name in pageCounts)) {
-                const count = await getPageCount(file);
-                newPageCounts[file.name] = count;
-                hasNewCounts = true;
-            }
+    const newFiles = files.filter(file => !(file.name in pageCounts));
+    if (newFiles.length > 0) {
+      const processFiles = async () => {
+        const newCounts: Record<string, number> = {};
+        for (const file of newFiles) {
+          newCounts[file.name] = await getPageCount(file);
         }
-        if (hasNewCounts) {
-           setPageCounts(prev => ({...prev, ...newPageCounts}));
-        }
-    };
-
-    if(files.length > 0) {
-        processFiles();
+        setPageCounts(prev => ({...prev, ...newCounts}));
+      };
+      processFiles();
     }
   }, [files, pageCounts, getPageCount]);
 
-
-  const remainingQuota = currentUser ? currentUser.pageQuota - totalPageCount : 0;
+  // Mocking user quota until it comes from Firestore
+  const currentUserQuota = 40;
+  const remainingQuota = currentUserQuota - totalPageCount;
   const hasSufficientQuota = remainingQuota >= 0;
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -141,9 +153,14 @@ export default function NewOrderPage() {
   const removeFile = (index: number) => {
     const fileToRemove = files[index];
     setFiles(files.filter((_, i) => i !== index));
+    
     const newPageCounts = {...pageCounts};
     delete newPageCounts[fileToRemove.name];
     setPageCounts(newPageCounts);
+
+    const newProgress = {...uploadProgress};
+    delete newProgress[fileToRemove.name];
+    setUploadProgress(newProgress);
   };
   
   const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -160,8 +177,31 @@ export default function NewOrderPage() {
     event.stopPropagation();
   }, []);
 
+  const uploadFile = (file: File, path: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const storage = getStorage();
+      const storageRef = ref(storage, path);
+      const uploadTask = uploadBytesResumable(storageRef, file);
 
-  const handleSubmit = () => {
+      uploadTask.on('state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(prev => ({...prev, [file.name]: progress}));
+        },
+        (error) => {
+          console.error("Upload failed for ", file.name, error);
+          reject(`Upload failed for ${file.name}: ${error.message}`);
+        },
+        () => {
+          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+            resolve(downloadURL);
+          });
+        }
+      );
+    });
+  }
+
+  const handleSubmit = async () => {
     if (!assignmentTitle.trim()) {
       toast({ variant: "destructive", title: "Assignment title is required." });
       return;
@@ -174,15 +214,43 @@ export default function NewOrderPage() {
         toast({ variant: "destructive", title: "Insufficient quota to submit." });
         return;
     }
+    if (!user) {
+        toast({ variant: "destructive", title: "You must be logged in to submit." });
+        return;
+    }
 
     setIsSubmitting(true);
-    setTimeout(() => {
+    
+    try {
+        const orderId = uuidv4();
+        const uploadPromises = files.map(file => {
+            const filePath = `uploads/${user.uid}/${orderId}/${file.name}`;
+            return uploadFile(file, filePath);
+        });
+
+        const uploadedUrls = await Promise.all(uploadPromises);
+
+        // TODO: Create order document in Firestore here
+        console.log("Order ID:", orderId);
+        console.log("File URLs:", uploadedUrls);
+        console.log("Page Count:", totalPageCount);
+        console.log("Order Type:", orderType);
+        console.log("Title:", assignmentTitle);
+
         toast({
             title: "Order Submitted!",
-            description: "Your assignment is now being processed.",
+            description: "Your files have been uploaded and your order is being processed.",
         });
         router.push('/dashboard');
-    }, 2000);
+
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Submission Failed",
+            description: String(error) || "An unexpected error occurred during file upload."
+        });
+        setIsSubmitting(false);
+    }
   }
 
   return (
@@ -249,7 +317,7 @@ export default function NewOrderPage() {
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {files.map((file, index) => (
-                           <FilePreview key={index} file={file} onRemove={() => removeFile(index)} isSubmitting={isSubmitting} />
+                           <FilePreview key={index} file={file} onRemove={() => removeFile(index)} isSubmitting={isSubmitting} progress={uploadProgress[file.name] ?? null} />
                         ))}
                         <button
                             type="button"
@@ -282,10 +350,10 @@ export default function NewOrderPage() {
                 </div>
                  <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Your Current Quota</span>
-                    <span className="font-semibold">{currentUser?.pageQuota} pages</span>
+                    <span className="font-semibold">{currentUserQuota} pages</span>
                 </div>
                 <div className="space-y-2">
-                    <Progress value={hasSufficientQuota ? (totalPageCount / (currentUser?.pageQuota || 1)) * 100 : 100} className={!hasSufficientQuota ? "bg-destructive/20 [&>*]:bg-destructive" : ""} />
+                    <Progress value={hasSufficientQuota ? (totalPageCount / (currentUserQuota || 1)) * 100 : 100} className={!hasSufficientQuota ? "bg-destructive/20 [&>*]:bg-destructive" : ""} />
                     <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Used: {totalPageCount}</span>
                         <span>Remaining: {remainingQuota < 0 ? 0 : remainingQuota}</span>
@@ -314,5 +382,3 @@ export default function NewOrderPage() {
     </div>
   );
 }
-
-    

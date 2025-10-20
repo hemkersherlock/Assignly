@@ -17,14 +17,12 @@ export interface Order {
   id: string;
   studentId: string;
   studentEmail: string;
-  originalFileName: string;
+  originalFileNames: string[];
   orderType: "assignment" | "practical";
-  originalFileUrl: string;
-  googleDriveFileId: string | null;
+  originalFileUrls: string[];
   pageCount: number;
   status: "pending" | "in_progress" | "completed";
   completedFileUrl: string | null;
-  completedGoogleDriveId: string | null;
   createdAt: Date;
   startedAt: Date | null;
   completedAt: Date | null;
