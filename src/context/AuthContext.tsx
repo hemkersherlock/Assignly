@@ -4,99 +4,69 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User as AppUser } from '@/types';
-import { useFirebase } from '@/firebase';
+import { mockUsers } from '@/lib/mock-data';
 import { Skeleton } from '@/components/ui/skeleton';
-import { doc, getDoc } from 'firebase/firestore';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
+
 
 interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
+  login: (email: string, pass: string) => { success: boolean; error?: string; role?: "student" | "admin" };
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [appUser, setAppUser] = useState<AppUser | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const { auth, user: firebaseUser, isUserLoading, firestore } = useFirebase();
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const checkUser = async () => {
-      if (isUserLoading || !firestore) {
-        return; // Wait until firebase auth state is resolved and firestore is available
-      }
-
-      if (firebaseUser) {
-        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-        
-        getDoc(userDocRef)
-          .then(userDoc => {
-            if (userDoc.exists()) {
-                setAppUser(userDoc.data() as AppUser);
-            } else {
-                setAppUser(null);
-            }
-          })
-          .catch(serverError => {
-              const permissionError = new FirestorePermissionError({
-                  path: userDocRef.path,
-                  operation: 'get',
-              });
-              errorEmitter.emit('permission-error', permissionError);
-              setAppUser(null);
-          });
-
-      } else {
-        setAppUser(null);
-      }
-      setAuthLoading(false);
-    };
-    checkUser();
-  }, [firebaseUser, isUserLoading, firestore]);
-  
-  useEffect(() => {
-    // This effect handles all redirection logic for the app.
-    if (authLoading) {
-      return; // Do nothing while we are determining auth state.
+    const storedUser = localStorage.getItem('assignly-user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
     }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
 
     const isAuthPage = pathname === '/login';
 
-    if (appUser) {
-      // User is logged in.
-      if (isAuthPage) {
-        // If they are on the login page, redirect them to their dashboard.
-        const targetDashboard = appUser.role === 'admin' ? '/admin' : '/dashboard';
-        router.push(targetDashboard);
-      }
-    } else {
-      // User is not logged in.
-      if (!isAuthPage) {
-        // If they are on any page other than login, redirect them to login.
-        router.push('/login');
-      }
+    if (user && isAuthPage) {
+      const targetDashboard = user.role === 'admin' ? '/admin' : '/dashboard';
+      router.push(targetDashboard);
     }
-  }, [appUser, authLoading, pathname, router]);
 
-
-  const logout = () => {
-    if (auth) {
-      auth.signOut();
+    if (!user && !isAuthPage) {
+      router.push('/login');
     }
+  }, [user, loading, pathname, router]);
+
+  const login = (email: string, pass: string) => {
+    const foundUser = mockUsers.find(u => u.email === email);
+    if (foundUser) {
+        setUser(foundUser);
+        localStorage.setItem('assignly-user', JSON.stringify(foundUser));
+        return { success: true, role: foundUser.role };
+    }
+    return { success: false, error: 'Invalid credentials' };
   };
 
-  const value = { user: appUser, loading: authLoading, logout };
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('assignly-user');
+    router.push('/login');
+  };
+
+  const value = { user, loading, login, logout };
   
   const isAuthPage = pathname === '/login';
 
-  // While loading, if we aren't on the login page, show a skeleton screen.
-  // This prevents a flash of content for protected pages.
-  if (authLoading && !isAuthPage) {
+  if (loading && !isAuthPage) {
     return (
         <div className="flex h-screen w-full items-center justify-center">
             <div className="w-full max-w-md space-y-4 p-4">
@@ -108,10 +78,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         </div>
     )
   }
-
+  
   // If we have finished loading, and we are not on an auth page, but there's no user,
-  // we return null. The redirection effect will handle sending them to the login page.
-  if (!authLoading && !isAuthPage && !appUser) {
+  // we return null and the effect will handle redirection.
+  if (!loading && !isAuthPage && !user) {
       return null;
   }
 

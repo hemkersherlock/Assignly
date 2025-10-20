@@ -33,11 +33,17 @@ export interface Order {
 }
 
 export interface DailyAnalytics {
-  id: string; // e.g., "daily_2023_10_27"
-  date: Date;
-  ordersReceived: number;
-  ordersCompleted: number;
-  pagesProcessed: number;
+    id: string; // e.g., "daily_2023_10_27"
+    date: Date;
+    ordersReceived: number;
+    ordersCompleted: number;
+    pagesProcessed: number;
+    totalOrders: number;
+    completedOrders: number;
+    pendingOrders: number;
+    totalPagesProcessed: number;
+    averageTurnaroundHours: number;
+    activeStudents: number;
 }
 
 export interface MonthlyAnalytics {

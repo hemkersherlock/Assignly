@@ -13,11 +13,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import * as pdfjs from 'pdfjs-dist';
-import { useFirebase } from "@/firebase";
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { v4 as uuidv4 } from 'uuid';
-import { collection, addDoc } from "firebase/firestore";
-import type { Order } from "@/types";
 
 // Configure the worker for pdf.js
 if (typeof window !== 'undefined') {
@@ -30,7 +25,7 @@ interface FileUploadProgress {
     error?: string;
 }
 
-function FilePreview({ file, onRemove, isSubmitting, progress }: { file: File, onRemove: () => void, isSubmitting: boolean, progress: number | null }) {
+function FilePreview({ file, onRemove, isSubmitting }: { file: File, onRemove: () => void, isSubmitting: boolean }) {
     const isImage = file.type.startsWith('image/');
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -59,11 +54,6 @@ function FilePreview({ file, onRemove, isSubmitting, progress }: { file: File, o
                     <span className="text-xs font-medium text-center break-all">{file.name}</span>
                 </div>
             )}
-             {progress !== null && progress < 100 && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
-                    <Progress value={progress} className="w-10/12 h-2" />
-                </div>
-            )}
             <Button
                 variant="destructive"
                 size="icon"
@@ -83,12 +73,10 @@ export default function NewOrderPage() {
   const [orderType, setOrderType] = useState<'assignment' | 'practical'>('assignment');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   const router = useRouter();
   const { toast } = useToast();
-  const { user, firestore } = useFirebase(); // Using Firebase auth context
-
+  
   const totalPageCount = useMemo(() => {
     return files.reduce((acc, file) => acc + (pageCounts[file.name] || 0), 0);
   }, [files, pageCounts]);
@@ -122,7 +110,7 @@ export default function NewOrderPage() {
     }
   }, [files, pageCounts, getPageCount]);
 
-  // Mocking user quota until it comes from Firestore
+  // Mocking user quota
   const currentUserQuota = 40;
   const remainingQuota = currentUserQuota - totalPageCount;
   const hasSufficientQuota = remainingQuota >= 0;
@@ -159,10 +147,6 @@ export default function NewOrderPage() {
     const newPageCounts = {...pageCounts};
     delete newPageCounts[fileToRemove.name];
     setPageCounts(newPageCounts);
-
-    const newProgress = {...uploadProgress};
-    delete newProgress[fileToRemove.name];
-    setUploadProgress(newProgress);
   };
   
   const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -179,30 +163,6 @@ export default function NewOrderPage() {
     event.stopPropagation();
   }, []);
 
-  const uploadFile = (file: File, path: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const storage = getStorage();
-      const storageRef = ref(storage, path);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(prev => ({...prev, [file.name]: progress}));
-        },
-        (error) => {
-          console.error("Upload failed for ", file.name, error);
-          reject(`Upload failed for ${file.name}: ${error.message}`);
-        },
-        () => {
-          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-            resolve(downloadURL);
-          });
-        }
-      );
-    });
-  }
-
   const handleSubmit = async () => {
     if (!assignmentTitle.trim()) {
       toast({ variant: "destructive", title: "Assignment title is required." });
@@ -216,55 +176,18 @@ export default function NewOrderPage() {
         toast({ variant: "destructive", title: "Insufficient quota to submit." });
         return;
     }
-    if (!user || !firestore) {
-        toast({ variant: "destructive", title: "You must be logged in to submit." });
-        return;
-    }
 
     setIsSubmitting(true);
     
-    try {
-        const orderId = uuidv4();
-        const uploadPromises = files.map(file => {
-            const filePath = `uploads/${user.uid}/${orderId}/${file.name}`;
-            return uploadFile(file, filePath);
-        });
-
-        const uploadedUrls = await Promise.all(uploadPromises);
-
-        const newOrder: Omit<Order, 'id'> = {
-            studentId: user.uid,
-            studentEmail: user.email || 'Unknown',
-            assignmentTitle: assignmentTitle,
-            originalFileNames: files.map(f => f.name),
-            originalFileUrls: uploadedUrls,
-            pageCount: totalPageCount,
-            orderType: orderType,
-            status: "pending",
-            createdAt: new Date(),
-            startedAt: null,
-            completedAt: null,
-            completedFileUrl: null,
-            turnaroundTimeHours: null,
-            notes: null
-        };
-        
-        await addDoc(collection(firestore, 'orders'), newOrder);
-
+    // Mock submission
+    setTimeout(() => {
+        setIsSubmitting(false);
         toast({
             title: "Order Submitted!",
             description: "Your files have been uploaded and your order is being processed.",
         });
         router.push('/dashboard');
-
-    } catch (error) {
-        toast({
-            variant: "destructive",
-            title: "Submission Failed",
-            description: String(error) || "An unexpected error occurred during file upload."
-        });
-        setIsSubmitting(false);
-    }
+    }, 2000);
   }
 
   return (
@@ -331,7 +254,7 @@ export default function NewOrderPage() {
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {files.map((file, index) => (
-                           <FilePreview key={index} file={file} onRemove={() => removeFile(index)} isSubmitting={isSubmitting} progress={uploadProgress[file.name] ?? null} />
+                           <FilePreview key={index} file={file} onRemove={() => removeFile(index)} isSubmitting={isSubmitting} />
                         ))}
                         <button
                             type="button"
