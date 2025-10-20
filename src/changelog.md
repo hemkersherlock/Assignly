@@ -2,6 +2,9 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Fix `React is not defined` error on New Order page
+- Added the missing `useRef` import from `react` to resolve a runtime error.
+
 ## [2024-07-26] - Refine file upload UI on New Order page
 - Replaced the persistent drag-and-drop area with a grid of file previews that appears after the first file is uploaded.
 - Added an "Add More" button with a `+` icon to allow for adding more files, creating a cleaner and more intuitive user flow.
