@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useState, useEffect } from "react";
+import { useAuth, useFirebase, useFirestore } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,19 +17,50 @@ import { Label } from "@/components/ui/label";
 import Logo from "@/components/shared/Logo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { login, loading } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const { auth, user } = useAuth();
+  const firestore = useFirestore();
+  const router = useRouter();
+
+  useEffect(() => {
+    const handleUser = async () => {
+      if (user && firestore) {
+        const userDocRef = doc(firestore, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          router.push(userData.role === 'admin' ? '/admin' : '/dashboard');
+        }
+      }
+    };
+    handleUser();
+  }, [user, firestore, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const user = await login(email);
-    if (!user) {
+    setLoading(true);
+    
+    if (!auth) {
+        setError("Authentication service not available.");
+        setLoading(false);
+        return;
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // The useEffect will handle redirection
+    } catch (error: any) {
+      console.error("Login failed:", error);
       setError("Invalid credentials. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 

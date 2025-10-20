@@ -2,80 +2,69 @@
 
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import type { User } from '@/types';
-import { mockUsers } from '@/lib/mock-data';
+import type { User as AppUser } from '@/types'; // Renamed to avoid conflict
+import { useFirebase } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface AuthContextType {
-  user: User | null;
-  login: (email: string) => Promise<User | null>;
-  logout: () => void;
+  user: AppUser | null;
   loading: boolean;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const { auth, user: firebaseUser, isUserLoading, firestore } = useFirebase();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    // Simulate checking for a logged-in user in session/local storage
-    const storedUserEmail = typeof window !== 'undefined' ? localStorage.getItem('userEmail') : null;
-    if (storedUserEmail) {
-      const foundUser = mockUsers.find(u => u.email === storedUserEmail);
-      setUser(foundUser || null);
-    }
-    setLoading(false);
-  }, []);
-
+    const checkUser = async () => {
+      if (!isUserLoading && firestore) {
+        if (firebaseUser) {
+          const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            setAppUser(userDoc.data() as AppUser);
+          } else {
+            console.error("User document not found in Firestore.");
+            setAppUser(null);
+          }
+        } else {
+          setAppUser(null);
+        }
+        setAuthLoading(false);
+      }
+    };
+    checkUser();
+  }, [firebaseUser, isUserLoading, firestore]);
+  
   useEffect(() => {
-    if (!loading) {
+    if (!authLoading) {
       const isAuthPage = pathname === '/login';
-      if (!user && !isAuthPage) {
+      if (!appUser && !isAuthPage) {
         router.push('/login');
       }
-      if (user && isAuthPage) {
-        router.push(user.role === 'admin' ? '/admin' : '/dashboard');
+      if (appUser && isAuthPage) {
+        router.push(appUser.role === 'admin' ? '/admin' : '/dashboard');
       }
     }
-  }, [user, loading, pathname, router]);
+  }, [appUser, authLoading, pathname, router]);
 
-
-  const login = async (email: string): Promise<User | null> => {
-    setLoading(true);
-    // Simulate API call
-    return new Promise(resolve => {
-        setTimeout(() => {
-            const foundUser = mockUsers.find(u => u.email === email);
-            if (foundUser) {
-                setUser(foundUser);
-                if (typeof window !== 'undefined') {
-                    localStorage.setItem('userEmail', foundUser.email);
-                }
-                router.push(foundUser.role === 'admin' ? '/admin' : '/dashboard');
-                resolve(foundUser);
-            } else {
-                resolve(null);
-            }
-            setLoading(false);
-        }, 1000);
-    });
-  };
 
   const logout = () => {
-    setUser(null);
-    if (typeof window !== 'undefined') {
-        localStorage.removeItem('userEmail');
-    }
+    auth?.signOut();
+    setAppUser(null);
     router.push('/login');
   };
 
-  const value = { user, login, logout, loading };
+  const value = { user: appUser, loading: authLoading, logout };
 
-  if (loading || (!user && pathname !== '/login')) {
+  if (authLoading || (!appUser && pathname !== '/login')) {
     return (
         <div className="flex h-screen w-full items-center justify-center">
             <div className="w-full max-w-md space-y-4 p-4">
@@ -91,10 +80,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => {
+export const useAuthContext = () => { // Renamed to avoid conflict with firebase/useAuth
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuthContext must be used within an AuthProvider');
   }
   return context;
 };

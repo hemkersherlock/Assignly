@@ -36,7 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/context/AuthContext";
+import { useAuthContext } from "@/context/AuthContext";
 import Logo from "../shared/Logo";
 
 const studentNav = [
@@ -82,7 +82,7 @@ function NavLink({
 }
 
 function AppSidebar() {
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuthContext();
   const { isMobile } = useSidebar();
   const navItems = user?.role === "admin" ? adminNav : studentNav;
 
@@ -119,7 +119,7 @@ function AppSidebar() {
 
 function AppHeader() {
   const { toggleSidebar } = useSidebar();
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuthContext();
 
   const getInitials = (email: string) => {
     const parts = email.split('@');
@@ -169,7 +169,7 @@ function AppHeader() {
 }
 
 export default function AppShell({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
 
   if (!user) {
     return null; // Or a loading spinner, but AuthProvider handles it
