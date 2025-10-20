@@ -67,15 +67,16 @@ function NavLink({
 
   return (
     <SidebarMenuItem>
-      <Link href={item.href} legacyBehavior passHref>
-        <SidebarMenuButton
-          isActive={isActive}
-          tooltip={!isMobile ? item.name : undefined}
-        >
+      <SidebarMenuButton
+        asChild
+        isActive={isActive}
+        tooltip={!isMobile ? item.name : undefined}
+      >
+        <Link href={item.href}>
           <Icon />
           <span>{item.name}</span>
-        </SidebarMenuButton>
-      </Link>
+        </Link>
+      </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
