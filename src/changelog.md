@@ -2,6 +2,12 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Fix `auth/invalid-credential` Error on Login
+- Updated the login page to automatically create user accounts (`student@assignly.com`, `admin@assignly.com`) if they don't already exist in Firebase Authentication. This resolves the `auth/invalid-credential` error during the first sign-in attempt.
+
+## [2024-07-26] - Fix "Authentication service not available" Error
+- Corrected an issue on the login page where the Firebase Authentication service was not being properly initialized, which caused a login failure. The page now correctly uses the `useFirebase` hook to get the auth instance.
+
 ## [2024-07-26] - Switch to Firebase Storage for File Uploads
 - Reverted the previous Google Drive integration plan.
 - Removed `googleapis` from `package.json` and cleared `.env` file.

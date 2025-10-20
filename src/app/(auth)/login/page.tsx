@@ -1,9 +1,10 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { useFirebase, useFirestore } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,7 +22,7 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState("password"); // Default password
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { auth, user } = useFirebase();
@@ -36,6 +37,11 @@ export default function LoginPage() {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           router.push(userData.role === 'admin' ? '/admin' : '/dashboard');
+        } else {
+            // This can happen if the user exists in Auth but not Firestore.
+            // For this app, we assume they should always exist together.
+            console.warn("User exists in Auth but not in Firestore.");
+            setError("User data is missing. Please contact support.");
         }
       }
     };
@@ -55,10 +61,21 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // The useEffect will handle redirection
+      // On success, the useEffect will handle redirection
     } catch (error: any) {
-      console.error("Login failed:", error);
-      setError("Invalid credentials. Please try again.");
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+            // If user doesn't exist, try creating them.
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                // On success, the useEffect will handle redirection
+            } catch (creationError: any) {
+                 console.error("User creation failed:", creationError);
+                 setError(`Could not sign in or create account. (${creationError.code})`);
+            }
+        } else {
+            console.error("Login failed:", error);
+            setError(`Login failed: ${error.message}`);
+        }
     } finally {
       setLoading(false);
     }
