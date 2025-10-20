@@ -22,13 +22,16 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { ChartTooltipContent } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 const activeOrders = mockOrders.filter(o => o.status === 'pending' || o.status === 'in_progress');
 const pendingCount = mockOrders.filter(o => o.status === 'pending').length;
 const inProgressCount = mockOrders.filter(o => o.status === 'in_progress').length;
 const completedToday = mockOrders.filter(o => o.status === 'completed' && o.completedAt && new Date().toDateString() === o.completedAt.toDateString()).length;
-const avgTurnaround = Math.round(mockOrders.filter(o => o.status === 'completed' && o.turnaroundTimeHours).reduce((acc, o) => acc + o.turnaroundTimeHours!, 0) / mockOrders.filter(o => o.status === 'completed').length);
+const completedOrders = mockOrders.filter(o => o.status === 'completed' && o.turnaroundTimeHours);
+const avgTurnaround = completedOrders.length > 0
+  ? Math.round(completedOrders.reduce((acc, o) => acc + o.turnaroundTimeHours!, 0) / completedOrders.length)
+  : 0;
 
 const weeklyData = [
     { day: "Mon", orders: 12 }, { day: "Tue", orders: 15 }, { day: "Wed", orders: 8 },
@@ -130,24 +133,29 @@ export default function AdminDashboard() {
                 <CardDescription>A summary of orders received this week.</CardDescription>
             </CardHeader>
             <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                    <AreaChart data={weeklyData} margin={{ top: 5, right: 20, left: -10, bottom: 0 }}>
-                        <defs>
-                            <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
-                                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                            </linearGradient>
-                        </defs>
+                <ChartContainer config={{
+                    orders: {
+                        label: "Orders",
+                        color: "hsl(var(--primary))",
+                    },
+                }} className="h-[250px] w-full">
+                    <AreaChart accessibilityLayer data={weeklyData} margin={{ top: 5, right: 20, left: -10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                         <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} />
                         <YAxis tickLine={false} axisLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} />
-                        <Tooltip
-                            content={<ChartTooltipContent />}
+                        <ChartTooltip
                             cursor={{ fill: 'hsl(var(--accent))', opacity: 0.1 }}
+                            content={<ChartTooltipContent />}
                         />
-                        <Area type="monotone" dataKey="orders" stroke="hsl(var(--primary))" fill="url(#colorOrders)" />
+                        <defs>
+                            <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="var(--color-orders)" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="var(--color-orders)" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <Area type="monotone" dataKey="orders" stroke="var(--color-orders)" fill="url(#colorOrders)" />
                     </AreaChart>
-                </ResponsiveContainer>
+                </ChartContainer>
             </CardContent>
         </Card>
       </div>
