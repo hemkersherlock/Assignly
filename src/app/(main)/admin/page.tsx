@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Card,
   CardContent,
@@ -75,7 +77,7 @@ export default function AdminDashboard() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">~{avgTurnaround} hours</div>
+            <div className="text-2xl font-bold">~{avgTurnaround || 0} hours</div>
             <p className="text-xs text-muted-foreground">Average completion time</p>
           </CardContent>
         </Card>
