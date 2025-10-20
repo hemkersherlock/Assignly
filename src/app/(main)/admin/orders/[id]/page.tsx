@@ -1,3 +1,4 @@
+
 "use client";
 
 import { notFound } from "next/navigation";
@@ -58,8 +59,15 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                     <div className="flex items-start gap-4">
                         <FileText className="h-5 w-5 text-muted-foreground mt-1" />
                         <div>
-                            <p className="text-sm text-muted-foreground">Original File</p>
-                            <p className="font-semibold flex items-center gap-2">{order.originalFileName} <Button variant="ghost" size="icon" className="h-6 w-6"><Download className="h-4 w-4" /></Button></p>
+                            <p className="text-sm text-muted-foreground">Original File(s)</p>
+                            <div className="font-semibold flex flex-col items-start gap-2">
+                                {order.originalFileNames.map((name, idx) => (
+                                    <div key={idx} className="flex items-center gap-2">
+                                        <span>{name}</span>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6"><Download className="h-4 w-4" /></Button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                     <div className="flex items-start gap-4">
@@ -123,7 +131,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                                     </div>
                                 </CardContent>
                             </Card>
-                            <Button onClick={() => handleStatusUpdate('completed')} disabled={isUpdating} className="w-full md:w-auto">
+                            <Button onClick={() => handleStatusUpdate('completed')} disabled={isUpdating} className="w-full md-w-auto">
                                 {isUpdating && <Loader className="mr-2 h-4 w-4 animate-spin" />}
                                 Mark as Completed & Notify
                             </Button>

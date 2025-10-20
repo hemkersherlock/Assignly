@@ -1,3 +1,4 @@
+
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
       <CardHeader>
         <div className="flex justify-between items-start">
             <div>
-                <CardTitle>Order Details</CardTitle>
+                <CardTitle>{order.assignmentTitle}</CardTitle>
                 <CardDescription>Summary of your order: <span className="font-mono text-xs">{order.id}</span></CardDescription>
             </div>
             <StatusBadge status={order.status} />
@@ -29,8 +30,10 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
             <div className="flex items-start gap-4">
                 <FileText className="h-5 w-5 text-muted-foreground mt-1" />
                 <div>
-                    <p className="text-sm text-muted-foreground">Filename</p>
-                    <p className="font-semibold">{order.originalFileName}</p>
+                    <p className="text-sm text-muted-foreground">Filename(s)</p>
+                    <div className="font-semibold flex flex-col">
+                        {order.originalFileNames.map((name, idx) => <span key={idx}>{name}</span>)}
+                    </div>
                 </div>
             </div>
             <div className="flex items-start gap-4">

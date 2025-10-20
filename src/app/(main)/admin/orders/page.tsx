@@ -1,3 +1,4 @@
+
 import {
   Card,
   CardContent,
@@ -33,7 +34,7 @@ export default function AdminAllOrdersPage() {
             <TableRow>
               <TableHead>Order ID</TableHead>
               <TableHead>Student</TableHead>
-              <TableHead>Filename</TableHead>
+              <TableHead>Title</TableHead>
               <TableHead className="text-center">Pages</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Submitted</TableHead>
@@ -45,7 +46,7 @@ export default function AdminAllOrdersPage() {
               <TableRow key={order.id}>
                 <TableCell className="font-mono text-xs">{order.id}</TableCell>
                 <TableCell>{order.studentEmail}</TableCell>
-                <TableCell className="font-medium">{order.originalFileName}</TableCell>
+                <TableCell className="font-medium">{order.assignmentTitle}</TableCell>
                 <TableCell className="text-center">{order.pageCount}</TableCell>
                 <TableCell>
                   <StatusBadge status={order.status} />

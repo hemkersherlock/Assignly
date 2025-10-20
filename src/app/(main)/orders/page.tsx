@@ -1,3 +1,4 @@
+
 import {
   Card,
   CardContent,
@@ -36,7 +37,7 @@ export default function OrderHistoryPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Filename</TableHead>
+              <TableHead>Title</TableHead>
               <TableHead className="text-center">Pages</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Submitted</TableHead>
@@ -46,7 +47,7 @@ export default function OrderHistoryPage() {
           <TableBody>
             {orders.map(order => (
               <TableRow key={order.id}>
-                <TableCell className="font-medium">{order.originalFileName}</TableCell>
+                <TableCell className="font-medium">{order.assignmentTitle}</TableCell>
                 <TableCell className="text-center">{order.pageCount}</TableCell>
                 <TableCell>
                   <StatusBadge status={order.status} />

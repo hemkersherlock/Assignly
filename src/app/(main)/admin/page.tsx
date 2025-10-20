@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -97,7 +98,7 @@ export default function AdminDashboard() {
                 <TableHeader>
                     <TableRow>
                         <TableHead>Student</TableHead>
-                        <TableHead>Filename</TableHead>
+                        <TableHead>Title</TableHead>
                         <TableHead>Pages</TableHead>
                         <TableHead>Time Elapsed</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -107,7 +108,7 @@ export default function AdminDashboard() {
                     {activeOrders.map(order => (
                         <TableRow key={order.id}>
                             <TableCell>{order.studentEmail}</TableCell>
-                            <TableCell className="font-medium">{order.originalFileName}</TableCell>
+                            <TableCell className="font-medium">{order.assignmentTitle}</TableCell>
                             <TableCell>{order.pageCount}</TableCell>
                             <TableCell>{formatDistanceToNow(order.createdAt)}</TableCell>
                             <TableCell className="text-right">

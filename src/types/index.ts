@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   email: string;
@@ -17,6 +18,7 @@ export interface Order {
   id: string;
   studentId: string;
   studentEmail: string;
+  assignmentTitle: string;
   originalFileNames: string[];
   orderType: "assignment" | "practical";
   originalFileUrls: string[];
@@ -40,7 +42,7 @@ export interface DailyAnalytics {
   activeStudents: number;
   ordersReceived: number;
   ordersCompleted: number;
-  pagesProcessed: number;
+pagesProcessed: number;
   date: Date;
 }
 

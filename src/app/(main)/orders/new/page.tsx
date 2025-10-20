@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
@@ -12,10 +13,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import * as pdfjs from 'pdfjs-dist';
-import { useAuth as useFirebaseAuth } from "@/firebase";
+import { useFirebase } from "@/firebase";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { v4 as uuidv4 } from 'uuid';
-
+import { collection, addDoc } from "firebase/firestore";
+import type { Order } from "@/types";
 
 // Configure the worker for pdf.js
 if (typeof window !== 'undefined') {
@@ -45,7 +47,7 @@ function FilePreview({ file, onRemove, isSubmitting, progress }: { file: File, o
                 URL.revokeObjectURL(previewUrl);
             }
         }
-    }, [file, isImage]);
+    }, [file, isImage, previewUrl]);
 
     return (
         <div className="relative group w-full aspect-video rounded-lg border bg-muted/20 flex items-center justify-center">
@@ -85,7 +87,7 @@ export default function NewOrderPage() {
 
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useFirebaseAuth(); // Using Firebase auth context
+  const { user, firestore } = useFirebase(); // Using Firebase auth context
 
   const totalPageCount = useMemo(() => {
     return files.reduce((acc, file) => acc + (pageCounts[file.name] || 0), 0);
@@ -214,7 +216,7 @@ export default function NewOrderPage() {
         toast({ variant: "destructive", title: "Insufficient quota to submit." });
         return;
     }
-    if (!user) {
+    if (!user || !firestore) {
         toast({ variant: "destructive", title: "You must be logged in to submit." });
         return;
     }
@@ -230,12 +232,24 @@ export default function NewOrderPage() {
 
         const uploadedUrls = await Promise.all(uploadPromises);
 
-        // TODO: Create order document in Firestore here
-        console.log("Order ID:", orderId);
-        console.log("File URLs:", uploadedUrls);
-        console.log("Page Count:", totalPageCount);
-        console.log("Order Type:", orderType);
-        console.log("Title:", assignmentTitle);
+        const newOrder: Omit<Order, 'id'> = {
+            studentId: user.uid,
+            studentEmail: user.email || 'Unknown',
+            assignmentTitle: assignmentTitle,
+            originalFileNames: files.map(f => f.name),
+            originalFileUrls: uploadedUrls,
+            pageCount: totalPageCount,
+            orderType: orderType,
+            status: "pending",
+            createdAt: new Date(),
+            startedAt: null,
+            completedAt: null,
+            completedFileUrl: null,
+            turnaroundTimeHours: null,
+            notes: null
+        };
+        
+        await addDoc(collection(firestore, 'orders'), newOrder);
 
         toast({
             title: "Order Submitted!",

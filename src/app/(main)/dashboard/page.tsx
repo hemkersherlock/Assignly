@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,7 +52,7 @@ export default function StudentDashboard() {
             {recentOrders.map(order => (
               <Card key={order.id} className="shadow-subtle">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-base font-medium truncate flex-1 mr-4">{order.originalFileName}</CardTitle>
+                  <CardTitle className="text-base font-medium truncate flex-1 mr-4">{order.assignmentTitle}</CardTitle>
                   <StatusBadge status={order.status} />
                 </CardHeader>
                 <CardContent>
