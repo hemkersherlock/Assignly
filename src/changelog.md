@@ -2,6 +2,14 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Step 1: Connect App to Firebase
+- Added `FirebaseClientProvider` to `src/app/layout.tsx` to initialize Firebase services.
+- Replaced the mock authentication system in `AuthContext` with a real one using Firebase Authentication and Firestore.
+- The app now listens for real-time authentication state changes and fetches user profiles from the Firestore database.
+
+## [2024-07-26] - Revert to Mock Data
+- Reverted all Firebase-related changes to restore the application to a stable, working state using the original mock data system. This was done to recover from a series of failed attempts to integrate a real backend.
+
 ## [2024-07-26] - Fix Login Redirection Logic
 - Refactored the authentication flow to centralize redirection logic within `AuthContext`. This resolves a race condition where the application would get stuck on the login page after a successful sign-in. The context now correctly waits for the user's Firestore document to be available before attempting to redirect.
 

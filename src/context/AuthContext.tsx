@@ -4,65 +4,75 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User as AppUser } from '@/types';
-import { mockUsers } from '@/lib/mock-data';
+import { useFirebase, useUser, useFirestore, useMemoFirebase } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { signOut, User as FirebaseUser } from "firebase/auth";
 import { Skeleton } from '@/components/ui/skeleton';
 
 
 interface AuthContextType {
   user: AppUser | null;
+  firebaseUser: FirebaseUser | null;
   loading: boolean;
-  login: (email: string, pass: string) => { success: boolean; error?: string; role?: "student" | "admin" };
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AppUser | null>(null);
+  const { auth } = useFirebase();
+  const { user: firebaseUser, isUserLoading: isFirebaseUserLoading } = useUser();
+  const firestore = useFirestore();
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('assignly-user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
-  }, []);
+    const checkUser = async () => {
+        if (isFirebaseUserLoading) return;
+        if (firebaseUser) {
+          const userDocRef = doc(firestore, "users", firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (userDoc.exists()) {
+            setAppUser(userDoc.data() as AppUser);
+          } else {
+            console.error("User document not found in Firestore.");
+            setAppUser(null);
+          }
+        } else {
+          setAppUser(null);
+        }
+        setLoading(false);
+    };
+
+    checkUser();
+  }, [firebaseUser, isFirebaseUserLoading, firestore]);
+  
 
   useEffect(() => {
     if (loading) return;
 
     const isAuthPage = pathname === '/login';
 
-    if (user && isAuthPage) {
-      const targetDashboard = user.role === 'admin' ? '/admin' : '/dashboard';
+    if (appUser && isAuthPage) {
+      const targetDashboard = appUser.role === 'admin' ? '/admin' : '/dashboard';
       router.push(targetDashboard);
     }
 
-    if (!user && !isAuthPage) {
+    if (!appUser && !isAuthPage) {
       router.push('/login');
     }
-  }, [user, loading, pathname, router]);
-
-  const login = (email: string, pass: string) => {
-    const foundUser = mockUsers.find(u => u.email === email);
-    if (foundUser) {
-        setUser(foundUser);
-        localStorage.setItem('assignly-user', JSON.stringify(foundUser));
-        return { success: true, role: foundUser.role };
-    }
-    return { success: false, error: 'Invalid credentials' };
-  };
+  }, [appUser, loading, pathname, router]);
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem('assignly-user');
+    signOut(auth);
+    setAppUser(null);
     router.push('/login');
   };
 
-  const value = { user, loading, login, logout };
+  const value = { user: appUser, firebaseUser, loading, logout };
   
   const isAuthPage = pathname === '/login';
 
@@ -79,9 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     )
   }
   
-  // If we have finished loading, and we are not on an auth page, but there's no user,
-  // we return null and the effect will handle redirection.
-  if (!loading && !isAuthPage && !user) {
+  if (!loading && !isAuthPage && !appUser) {
       return null;
   }
 

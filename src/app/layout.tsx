@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/context/AuthContext";
+import { FirebaseClientProvider } from "@/firebase/client-provider";
 
 export const metadata: Metadata = {
   title: "Assignly",
@@ -25,10 +26,12 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
+        <FirebaseClientProvider>
           <AuthProvider>
             {children}
             <Toaster />
           </AuthProvider>
+        </FirebaseClientProvider>
       </body>
     </html>
   );
