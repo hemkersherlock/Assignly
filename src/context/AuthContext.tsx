@@ -29,11 +29,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
 
   useEffect(() => {
-    const checkUser = async () => {
+    const manageUser = async () => {
         if (isFirebaseUserLoading) return;
+        
         if (firebaseUser) {
           const userDocRef = doc(firestore, "users", firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
+          let userDoc = await getDoc(userDocRef);
+
+          // If user document doesn't exist, create it.
+          if (!userDoc.exists()) {
+            console.log(`User document for ${firebaseUser.uid} not found. Creating it now.`);
+            const isStudent = firebaseUser.email?.toLowerCase().includes('student');
+            const newUser: Omit<AppUser, 'id' | 'quotaLastReplenished' | 'createdAt' | 'lastPaymentDate'> & { quotaLastReplenished: any, createdAt: any, lastPaymentDate: any } = {
+                email: firebaseUser.email || 'unknown@example.com',
+                role: isStudent ? "student" : "admin",
+                pageQuota: isStudent ? 40 : 999,
+                quotaLastReplenished: serverTimestamp(),
+                totalOrdersPlaced: 0,
+                totalPagesUsed: 0,
+                createdAt: serverTimestamp(),
+                isActive: true,
+                paymentStatus: "paid",
+                lastPaymentDate: null,
+                amountPaid: 0,
+            };
+            try {
+              await setDoc(userDocRef, newUser);
+              // Re-fetch the document after creating it
+              userDoc = await getDoc(userDocRef);
+            } catch (error) {
+                console.error("Error creating user document:", error);
+                setAppUser(null);
+                setLoading(false);
+                return;
+            }
+          }
 
           if (userDoc.exists()) {
             const userData = userDoc.data() as Omit<AppUser, 'id'>;
@@ -49,9 +79,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               createdAt: createdAt.toDate(),
               lastPaymentDate: lastPayment ? lastPayment.toDate() : null
             });
-          } else {
-            console.error("User document not found in Firestore.");
-            // Keep appUser null, redirection logic will handle this
           }
         } else {
           setAppUser(null);
@@ -59,7 +86,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
     };
 
-    checkUser();
+    manageUser();
   }, [firebaseUser, isFirebaseUserLoading, firestore]);
   
 
@@ -86,29 +113,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, pass: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
-      // Let the useEffect hooks handle redirection after state updates.
+      // Let the useEffect hooks handle document creation and redirection.
     } catch (error: any) {
       if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         try {
-          const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-          const isStudent = email.toLowerCase().includes('student');
-          
-          const userDocRef = doc(firestore, "users", userCredential.user.uid);
-          const newUser: Omit<AppUser, 'id' | 'quotaLastReplenished' | 'createdAt' | 'lastPaymentDate'> & { quotaLastReplenished: any, createdAt: any, lastPaymentDate: any } = {
-            email: email,
-            role: isStudent ? "student" : "admin",
-            pageQuota: isStudent ? 40 : 999,
-            quotaLastReplenished: serverTimestamp(),
-            totalOrdersPlaced: 0,
-            totalPagesUsed: 0,
-            createdAt: serverTimestamp(),
-            isActive: true,
-            paymentStatus: "paid",
-            lastPaymentDate: null,
-            amountPaid: 0,
-          };
-          await setDoc(userDocRef, newUser);
-          // Again, let useEffects handle redirection.
+          await createUserWithEmailAndPassword(auth, email, pass);
+           // Let the useEffect hooks handle document creation and redirection.
         } catch (creationError: any) {
           console.error("Failed to create user:", creationError);
           throw new Error("Could not sign in or create account. (" + creationError.code + ")");
