@@ -2,6 +2,13 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-25] - Redesign New Order Page and Update Navigation
+- Redesigned the "New Order" page with a modern, two-column layout.
+- Implemented multi-file upload with drag-and-drop support.
+- Added a field for an assignment title.
+- Created a "Billing Summary" card that dynamically calculates page counts and updates the user's quota information in real-time.
+- Updated the student sidebar navigation to move "New Order" to a more prominent position below "Dashboard".
+
 ## [2024-07-25] - Fix Next.js Link `legacyBehavior` deprecation
 - Removed `legacyBehavior` prop from `Link` component in `src/components/layout/AppShell.tsx` and updated component structure to align with modern Next.js practices.
 

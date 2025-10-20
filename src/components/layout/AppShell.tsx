@@ -41,8 +41,8 @@ import Logo from "../shared/Logo";
 
 const studentNav = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Order History", href: "/orders", icon: FileText },
   { name: "New Order", href: "/orders/new", icon: FilePlus },
+  { name: "Order History", href: "/orders", icon: FileText },
 ];
 
 const adminNav = [
