@@ -31,7 +31,7 @@ export default function LoginPage() {
       await login(email, password);
       // On successful login, the AuthContext's useEffect will handle redirection.
     } catch (err: any) {
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found') {
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError("Invalid email or password. Please try again.");
       } else {
         setError("An unexpected error occurred. Please try again.");

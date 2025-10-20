@@ -44,20 +44,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (firebaseUser) {
           const userDocRef = doc(firestore, "users", firebaseUser.uid);
-          let userDoc = await getDoc(userDocRef);
+          const adminRoleRef = doc(firestore, "roles_admin", firebaseUser.uid);
+
+          // Fetch both documents concurrently
+          const [userDoc, adminDoc] = await Promise.all([
+            getDoc(userDocRef),
+            getDoc(adminRoleRef)
+          ]);
+
+          const currentRole = adminDoc.exists() ? "admin" : "student";
+          let userData = userDoc.data();
 
           if (!userDoc.exists()) {
             console.log(`User document for ${firebaseUser.uid} not found. Creating it now.`);
             
-            // Check for admin role
-            const adminRoleRef = doc(firestore, "roles_admin", firebaseUser.uid);
-            const adminDoc = await getDoc(adminRoleRef);
-            const newUserRole = adminDoc.exists() ? "admin" : "student";
-            
             const newUser: Omit<AppUser, 'id' | 'quotaLastReplenished' | 'createdAt' | 'lastPaymentDate'> & { quotaLastReplenished: any, createdAt: any, lastPaymentDate: any } = {
                 email: firebaseUser.email || 'unknown@example.com',
-                role: newUserRole,
-                pageQuota: newUserRole === 'student' ? 40 : 999,
+                role: currentRole,
+                pageQuota: currentRole === 'student' ? 40 : 999,
                 quotaLastReplenished: serverTimestamp(),
                 totalOrdersPlaced: 0,
                 totalPagesUsed: 0,
@@ -69,7 +73,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             };
             try {
               await setDoc(userDocRef, newUser);
-              userDoc = await getDoc(userDocRef); // Re-fetch the document
+              const newUserDoc = await getDoc(userDocRef); // Re-fetch the document
+              userData = newUserDoc.data();
             } catch (error) {
                 console.error("Error creating user document:", error);
                 setAppUser(null);
@@ -78,21 +83,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
           }
 
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-             if (userData) {
-                const lastReplenished = userData.quotaLastReplenished as Timestamp;
-                const createdAt = userData.createdAt as Timestamp;
-                const lastPayment = userData.lastPaymentDate as Timestamp | null;
+          if (userData) {
+            const lastReplenished = userData.quotaLastReplenished as Timestamp;
+            const createdAt = userData.createdAt as Timestamp;
+            const lastPayment = userData.lastPaymentDate as Timestamp | null;
 
-                setAppUser({
-                  ...(userData as Omit<AppUser, 'id' | 'quotaLastReplenished' | 'createdAt' | 'lastPaymentDate'>),
-                  id: firebaseUser.uid,
-                  quotaLastReplenished: lastReplenished?.toDate(),
-                  createdAt: createdAt?.toDate(),
-                  lastPaymentDate: lastPayment ? lastPayment.toDate() : null
-                });
-             }
+            setAppUser({
+              ...(userData as Omit<AppUser, 'id' | 'quotaLastReplenished' | 'createdAt' | 'lastPaymentDate'>),
+              id: firebaseUser.uid,
+              role: currentRole, // Always use the most up-to-date role
+              quotaLastReplenished: lastReplenished?.toDate(),
+              createdAt: createdAt?.toDate(),
+              lastPaymentDate: lastPayment ? lastPayment.toDate() : null
+            });
+          } else {
+             console.error("Failed to get or create user data for", firebaseUser.uid);
+             setAppUser(null);
           }
         } else {
           setAppUser(null);
