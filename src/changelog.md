@@ -2,6 +2,10 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Final Login/Signup Fix
+- Implemented a definitive fix for the entire authentication flow. The login page now correctly attempts to sign in a user, and if the user does not exist, it creates a new account in Firebase Authentication.
+- The `AuthContext` is now solely responsible for creating the user's profile document in Firestore if one does not exist after a successful authentication. This separation of concerns resolves a critical race condition and ensures every authenticated user has a corresponding database record, finally fixing the long-standing "User document not found" error.
+
 ## [2024-07-26] - Fix Login Failure and User Creation
 - Implemented a definitive fix for the long-standing login issue. The `AuthContext` now robustly handles user profile creation. If a user is authenticated but their profile document does not exist in Firestore, it is now created automatically. This resolves the "User document not found" error and ensures a smooth login and redirection experience.
 

@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User as AppUser } from '@/types';
 import { useFirebase } from "@/firebase";
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import { signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { signOut, User as FirebaseUser, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { Skeleton } from '@/components/ui/skeleton';
 
 
@@ -37,7 +37,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const manageUser = async () => {
-        if (firebaseUser === undefined) return; // Wait for auth state to be determined
+        if (firebaseUser === undefined) {
+          setLoading(true);
+          return;
+        }; 
         
         if (firebaseUser) {
           const userDocRef = doc(firestore, "users", firebaseUser.uid);
@@ -73,18 +76,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
 
           if (userDoc.exists()) {
-            const userData = userDoc.data() as Omit<AppUser, 'id'>;
-            const lastReplenished = userData.quotaLastReplenished as unknown as Timestamp;
-            const createdAt = userData.createdAt as unknown as Timestamp;
-            const lastPayment = userData.lastPaymentDate as unknown as Timestamp | null;
+            const userData = userDoc.data();
+             if (userData) {
+                const lastReplenished = userData.quotaLastReplenished as Timestamp;
+                const createdAt = userData.createdAt as Timestamp;
+                const lastPayment = userData.lastPaymentDate as Timestamp | null;
 
-            setAppUser({
-              ...userData,
-              id: firebaseUser.uid,
-              quotaLastReplenished: lastReplenished.toDate(),
-              createdAt: createdAt.toDate(),
-              lastPaymentDate: lastPayment ? lastPayment.toDate() : null
-            });
+                setAppUser({
+                  ...(userData as Omit<AppUser, 'id' | 'quotaLastReplenished' | 'createdAt' | 'lastPaymentDate'>),
+                  id: firebaseUser.uid,
+                  quotaLastReplenished: lastReplenished?.toDate(),
+                  createdAt: createdAt?.toDate(),
+                  lastPaymentDate: lastPayment ? lastPayment.toDate() : null
+                });
+             }
           }
         } else {
           setAppUser(null);
@@ -117,16 +122,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
     } catch (error: any) {
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+      if (error.code === 'auth/user-not-found') {
+        // If user not found, create them. This also signs them in.
         try {
           await createUserWithEmailAndPassword(auth, email, pass);
         } catch (creationError: any) {
           console.error("Failed to create user:", creationError);
-          throw new Error("Could not sign in or create account. (" + creationError.code + ")");
+          throw new Error("Could not create account. (" + creationError.code + ")");
         }
       } else {
+        // Handle other errors like wrong password
         console.error("Login failed:", error);
-        throw new Error(error.message);
+        throw new Error("Login failed. Please check your credentials.");
       }
     }
   }
