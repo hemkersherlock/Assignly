@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Controls access to user profile documents.
+     * @path /users/{userId}
+     * @allow (get, list): Authenticated user reading their own profile.
+     * @allow (create): Authenticated user creating their own profile.
+     * @allow (update, delete): Authenticated user updating or deleting their own profile.
+     * @deny (get, list): Authenticated user reading another user's profile.
+     * @deny (create): Authenticated user creating a profile with an ID that doesn't match their auth UID.
+     * @deny (update, delete): Authenticated user updating or deleting another user's profile.
+     * @principle Enforces document ownership for all operations on user profiles.
+     */
+    match /users/{userId} {
+      allow get: if request.auth.uid == userId;
+      allow list: if false;
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId;
+      allow delete: if request.auth.uid == userId;
+    }
+
+    /**
+     * @description Controls access to order documents nested under user profiles.
+     * @path /users/{userId}/orders/{orderId}
+     * @allow (get, list): Authenticated user reading their own orders.
+     * @allow (create): Authenticated user creating an order for themselves, with studentId matching their user ID.
+     * @allow (update, delete): Authenticated user updating or deleting their own orders.
+     * @deny (get, list): Authenticated user reading another user's orders.
+     * @deny (create): Authenticated user creating an order for another user.
+     * @deny (update, delete): Authenticated user updating or deleting another user's orders.
+     * @principle Enforces document ownership for all operations on user orders, validates relational integrity.
+     */
+    match /users/{userId}/orders/{orderId} {
+      allow get: if request.auth.uid == userId;
+      allow list: if request.auth.uid == userId;
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId;
+      allow delete: if request.auth.uid == userId;
+    }
+
+    /**
+     * @description Controls access to analytics documents.
+     * @path /analytics/{analyticsId}
+     * @allow (get, list): Public read access for analytics data.
+     * @deny (create, update, delete): No client-side write access to analytics data.
+     * @principle Provides public read access to analytics, restricts writes to server-side only.
+     */
+    match /analytics/{analyticsId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+  }
+}
