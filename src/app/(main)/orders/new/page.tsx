@@ -6,13 +6,51 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UploadCloud, File as FileIcon, X, Loader2, Info } from "lucide-react";
+import { UploadCloud, File as FileIcon, X, Loader2, Info, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { mockUsers } from "@/lib/mock-data";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 // Mock current user
 const currentUser = mockUsers.find(u => u.role === 'student');
+
+function FilePreview({ file, onRemove, isSubmitting }: { file: File, onRemove: () => void, isSubmitting: boolean }) {
+    const isImage = file.type.startsWith('image/');
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+    useMemo(() => {
+        if (isImage) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPreviewUrl(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    }, [file, isImage]);
+
+    return (
+        <div className="relative group w-full aspect-video rounded-lg border bg-muted/20 flex items-center justify-center">
+            {isImage && previewUrl ? (
+                <img src={previewUrl} alt={file.name} className="object-cover h-full w-full rounded-lg" />
+            ) : (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground p-2">
+                    <FileIcon className="h-8 w-8" />
+                    <span className="text-xs font-medium text-center break-all">{file.name}</span>
+                </div>
+            )}
+            <Button
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={onRemove}
+                disabled={isSubmitting}
+            >
+                <X className="h-4 w-4" />
+            </Button>
+        </div>
+    );
+}
 
 export default function NewOrderPage() {
   const [assignmentTitle, setAssignmentTitle] = useState("");
@@ -22,20 +60,19 @@ export default function NewOrderPage() {
   const { toast } = useToast();
 
   const totalPageCount = useMemo(() => {
-    // In a real app, this would involve analyzing the files.
-    // Here, we'll assign a random page count to each file for simulation.
     return files.reduce((acc) => acc + (Math.floor(Math.random() * 5) + 1), 0);
   }, [files]);
 
   const remainingQuota = currentUser ? currentUser.pageQuota - totalPageCount : 0;
   const hasSufficientQuota = remainingQuota >= 0;
+  
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
       const allFiles = [...files, ...newFiles];
 
-      // Simple validation for file size and type
       const validFiles = allFiles.filter(file => {
         if (file.size > 50 * 1024 * 1024) { // 50MB
           toast({
@@ -48,6 +85,9 @@ export default function NewOrderPage() {
         return true;
       });
       setFiles(validFiles);
+       if (e.target) {
+        e.target.value = '';
+      }
     }
   };
 
@@ -58,11 +98,11 @@ export default function NewOrderPage() {
   const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (event.dataTransfer.files) {
+    if (event.dataTransfer.files && files.length === 0) {
       const newFiles = Array.from(event.dataTransfer.files);
       setFiles(prevFiles => [...prevFiles, ...newFiles]);
     }
-  }, []);
+  }, [files]);
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -85,7 +125,6 @@ export default function NewOrderPage() {
     }
 
     setIsSubmitting(true);
-    // Simulate order submission
     setTimeout(() => {
         toast({
             title: "Order Submitted!",
@@ -117,44 +156,46 @@ export default function NewOrderPage() {
             
             <div className="space-y-2">
                 <Label>Assignment Files</Label>
-                <div 
-                  className="relative border-2 border-dashed border-muted-foreground/50 rounded-lg p-8 text-center flex flex-col items-center justify-center hover:border-primary transition-colors"
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                >
-                    <UploadCloud className="h-10 w-10 text-muted-foreground" />
-                    <p className="mt-2 font-semibold">Drag & drop files or click to browse</p>
-                    <p className="text-sm text-muted-foreground">PDF, DOCX, JPG, PNG up to 50MB each</p>
-                    <input 
-                        type="file" 
-                        multiple
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                        onChange={handleFileChange}
-                        accept=".pdf,.docx,.jpg,.jpeg,.png"
-                        disabled={isSubmitting}
-                    />
-                </div>
-            </div>
-
-            {files.length > 0 && (
-                <div className="space-y-2">
-                    <h3 className="font-medium text-sm">Uploaded Files</h3>
-                    <div className="space-y-2">
+                 <input 
+                    type="file" 
+                    multiple
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleFileChange}
+                    accept=".pdf,.docx,.jpg,.jpeg,.png"
+                    disabled={isSubmitting}
+                />
+                {files.length === 0 ? (
+                  <div 
+                    className="relative border-2 border-dashed border-muted-foreground/50 rounded-lg p-8 text-center flex flex-col items-center justify-center hover:border-primary transition-colors cursor-pointer"
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                      <UploadCloud className="h-10 w-10 text-muted-foreground" />
+                      <p className="mt-2 font-semibold">Drag & drop files or click to browse</p>
+                      <p className="text-sm text-muted-foreground">PDF, DOCX, JPG, PNG up to 50MB each</p>
+                  </div>
+                ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {files.map((file, index) => (
-                            <div key={index} className="flex items-center gap-3 rounded-md border p-3 bg-muted/20">
-                                <FileIcon className="h-6 w-6 text-muted-foreground" />
-                                <div className="flex-1">
-                                    <p className="text-sm font-medium truncate">{file.name}</p>
-                                    <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(2)} KB</p>
-                                </div>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeFile(index)} disabled={isSubmitting}>
-                                    <X className="h-4 w-4" />
-                                </Button>
-                            </div>
+                           <FilePreview key={index} file={file} onRemove={() => removeFile(index)} isSubmitting={isSubmitting} />
                         ))}
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isSubmitting}
+                            className={cn(
+                                "aspect-video rounded-lg border-2 border-dashed border-muted-foreground/50 flex flex-col items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors",
+                                isSubmitting && "cursor-not-allowed opacity-50"
+                            )}
+                        >
+                            <Plus className="h-8 w-8" />
+                            <span className="text-sm font-semibold mt-1">Add More</span>
+                        </button>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
           </CardContent>
         </Card>
       </div>

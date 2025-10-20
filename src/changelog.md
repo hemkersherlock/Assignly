@@ -2,6 +2,11 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Refine file upload UI on New Order page
+- Replaced the persistent drag-and-drop area with a grid of file previews that appears after the first file is uploaded.
+- Added an "Add More" button with a `+` icon to allow for adding more files, creating a cleaner and more intuitive user flow.
+- Added image previews for uploaded image files.
+
 ## [2024-07-25] - Redesign New Order Page and Update Navigation
 - Redesigned the "New Order" page with a modern, two-column layout.
 - Implemented multi-file upload with drag-and-drop support.
