@@ -2,6 +2,9 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Fix Login Redirection Logic
+- Refactored the authentication flow to centralize redirection logic within `AuthContext`. This resolves a race condition where the application would get stuck on the login page after a successful sign-in. The context now correctly waits for the user's Firestore document to be available before attempting to redirect.
+
 ## [2024-07-26] - Step 1: Connect App to Firebase
 - Added `FirebaseClientProvider` to `src/app/layout.tsx` to initialize Firebase services.
 - Replaced the mock authentication system in `AuthContext` with a real one using Firebase Authentication and Firestore.
@@ -9,9 +12,6 @@ This file will be updated with a log of all changes made to the application code
 
 ## [2024-07-26] - Revert to Mock Data
 - Reverted all Firebase-related changes to restore the application to a stable, working state using the original mock data system. This was done to recover from a series of failed attempts to integrate a real backend.
-
-## [2024-07-26] - Fix Login Redirection Logic
-- Refactored the authentication flow to centralize redirection logic within `AuthContext`. This resolves a race condition where the application would get stuck on the login page after a successful sign-in. The context now correctly waits for the user's Firestore document to be available before attempting to redirect.
 
 ## [2024-07-26] - Fix `auth/invalid-credential` Error on Login
 - Updated the login page to automatically create user accounts (`student@assignly.com`, `admin@assignly.com`) if they don't already exist in Firebase Authentication. This resolves the `auth/invalid-credential` error during the first sign-in attempt.

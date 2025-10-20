@@ -5,7 +5,7 @@ import React, { createContext, useState, useContext, useEffect, ReactNode } from
 import { useRouter, usePathname } from 'next/navigation';
 import type { User as AppUser } from '@/types';
 import { useFirebase, useUser } from "@/firebase";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -37,18 +37,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           if (userDoc.exists()) {
             const userData = userDoc.data() as Omit<AppUser, 'id'>;
+            // Ensure Timestamps are converted to Dates
+            const lastReplenished = userData.quotaLastReplenished as unknown as Timestamp;
+            const createdAt = userData.createdAt as unknown as Timestamp;
+            const lastPayment = userData.lastPaymentDate as unknown as Timestamp | null;
+
             setAppUser({
               ...userData,
               id: firebaseUser.uid,
-              quotaLastReplenished: (userData.quotaLastReplenished as any).toDate(),
-              createdAt: (userData.createdAt as any).toDate(),
-              lastPaymentDate: userData.lastPaymentDate ? (userData.lastPaymentDate as any).toDate() : null
+              quotaLastReplenished: lastReplenished.toDate(),
+              createdAt: createdAt.toDate(),
+              lastPaymentDate: lastPayment ? lastPayment.toDate() : null
             });
           } else {
-            // This case might happen briefly during first login if the doc creation is slow,
-            // but the login function now handles creating the document.
             console.error("User document not found in Firestore.");
-            setAppUser(null);
+            // Keep appUser null, redirection logic will handle this
           }
         } else {
           setAppUser(null);
@@ -61,15 +64,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
 
   useEffect(() => {
-    if (loading) return;
+    // Wait until the initial loading is complete before doing any redirects
+    if (loading) {
+      return;
+    }
 
     const isAuthPage = pathname === '/login';
 
+    // If we have a user and they are on the login page, redirect them.
     if (appUser && isAuthPage) {
       const targetDashboard = appUser.role === 'admin' ? '/admin' : '/dashboard';
       router.push(targetDashboard);
     }
-
+    
+    // If we DON'T have a user and they are NOT on the login page, send them to login.
     if (!appUser && !isAuthPage) {
       router.push('/login');
     }
@@ -78,48 +86,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, pass: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
+      // Let the useEffect hooks handle redirection after state updates.
     } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
-        // If user doesn't exist, create one
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-        
-        const isStudent = email.toLowerCase().includes('student');
-        
-        // Now create the user document in Firestore
-        const userDocRef = doc(firestore, "users", userCredential.user.uid);
-        const newUser: Omit<AppUser, 'id'> = {
-          email: email,
-          role: isStudent ? "student" : "admin",
-          pageQuota: isStudent ? 40 : 999,
-          quotaLastReplenished: serverTimestamp() as any,
-          totalOrdersPlaced: 0,
-          totalPagesUsed: 0,
-          createdAt: serverTimestamp() as any,
-          isActive: true,
-          paymentStatus: "paid",
-          lastPaymentDate: null,
-          amountPaid: 0,
-        };
-        await setDoc(userDocRef, newUser);
-
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+          const isStudent = email.toLowerCase().includes('student');
+          
+          const userDocRef = doc(firestore, "users", userCredential.user.uid);
+          const newUser: Omit<AppUser, 'id' | 'quotaLastReplenished' | 'createdAt' | 'lastPaymentDate'> & { quotaLastReplenished: any, createdAt: any, lastPaymentDate: any } = {
+            email: email,
+            role: isStudent ? "student" : "admin",
+            pageQuota: isStudent ? 40 : 999,
+            quotaLastReplenished: serverTimestamp(),
+            totalOrdersPlaced: 0,
+            totalPagesUsed: 0,
+            createdAt: serverTimestamp(),
+            isActive: true,
+            paymentStatus: "paid",
+            lastPaymentDate: null,
+            amountPaid: 0,
+          };
+          await setDoc(userDocRef, newUser);
+          // Again, let useEffects handle redirection.
+        } catch (creationError: any) {
+          console.error("Failed to create user:", creationError);
+          throw new Error("Could not sign in or create account. (" + creationError.code + ")");
+        }
       } else {
-        // Re-throw other errors to be displayed on the login page
-        throw error;
+        console.error("Login failed:", error);
+        throw new Error(error.message);
       }
     }
   }
 
-  const logout = () => {
-    signOut(auth);
+  const logout = async () => {
+    await signOut(auth);
     setAppUser(null);
     router.push('/login');
   };
 
   const value = { user: appUser, firebaseUser, loading, login, logout };
   
-  const isAuthPage = pathname === '/login';
-
-  if (loading && !isAuthPage) {
+  // While loading and not on an auth page, show a skeleton loader.
+  // This prevents a flash of the login page for already authenticated users.
+  if (loading && pathname !== '/login') {
     return (
         <div className="flex h-screen w-full items-center justify-center">
             <div className="w-full max-w-md space-y-4 p-4">
@@ -130,10 +141,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             </div>
         </div>
     )
-  }
-  
-  if (!loading && !isAuthPage && !appUser) {
-      return null;
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

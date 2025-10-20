@@ -2,7 +2,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,7 +21,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("password");
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
   const { login } = useAuthContext();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -31,7 +29,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       // On successful login, the AuthContext's useEffect will handle redirection.
-      // No need to push history here.
+      // We no longer push history from here.
     } catch (err: any) {
       setError(err.message);
       console.error(err);
