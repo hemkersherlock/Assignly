@@ -73,39 +73,41 @@ export default function NewOrderPage() {
     return files.reduce((acc, file) => acc + (pageCounts[file.name] || 0), 0);
   }, [files, pageCounts]);
 
-  useEffect(() => {
-    const getPageCount = async (file: File) => {
-        if (file.type === 'application/pdf') {
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const pdf = await pdfjs.getDocument(arrayBuffer).promise;
-                return pdf.numPages;
-            } catch (error) {
-                console.error("Error reading PDF:", error);
-                toast({ variant: "destructive", title: "Could not read PDF file." });
-                return 1; // Default to 1 page on error
-            }
+  const getPageCount = useCallback(async (file: File) => {
+    if (file.type === 'application/pdf') {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjs.getDocument(arrayBuffer).promise;
+            return pdf.numPages;
+        } catch (error) {
+            console.error("Error reading PDF:", error);
+            toast({ variant: "destructive", title: "Could not read PDF file." });
+            return 1; // Default to 1 page on error
         }
-        return 1; // 1 page for non-PDF files
-    };
+    }
+    return 1; // 1 page for non-PDF files
+  }, [toast]);
 
+  useEffect(() => {
     const processFiles = async () => {
         const newPageCounts: Record<string, number> = {};
+        let hasNewCounts = false;
         for (const file of files) {
             if (!(file.name in pageCounts)) {
                 const count = await getPageCount(file);
                 newPageCounts[file.name] = count;
-            } else {
-                newPageCounts[file.name] = pageCounts[file.name];
+                hasNewCounts = true;
             }
         }
-        setPageCounts(prev => ({...prev, ...newPageCounts}));
+        if (hasNewCounts) {
+           setPageCounts(prev => ({...prev, ...newPageCounts}));
+        }
     };
 
     if(files.length > 0) {
         processFiles();
     }
-  }, [files, toast, pageCounts]);
+  }, [files, pageCounts, getPageCount]);
 
 
   const remainingQuota = currentUser ? currentUser.pageQuota - totalPageCount : 0;
@@ -312,3 +314,5 @@ export default function NewOrderPage() {
     </div>
   );
 }
+
+    

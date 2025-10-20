@@ -2,6 +2,9 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Fix infinite render loop on New Order page
+- Resolved a "Maximum update depth exceeded" error by optimizing the `useEffect` hook responsible for PDF page counting. The logic is now correctly memoized to prevent unnecessary re-renders.
+
 ## [2024-07-26] - Implement Accurate PDF Page Counting
 - Added `pdfjs-dist` library to the project.
 - Updated the "New Order" page to count the exact number of pages for uploaded PDF files.
@@ -43,5 +46,7 @@ This file will be updated with a log of all changes made to the application code
 
 ## [YYYY-MM-DD] - Initial Setup
 - Created `changelog.md` to track codebase modifications.
+
+    
 
     
