@@ -62,7 +62,9 @@ export default function NewOrderPage() {
   const { toast } = useToast();
 
   const totalPageCount = useMemo(() => {
-    return files.reduce((acc) => acc + (Math.floor(Math.random() * 5) + 1), 0);
+    // A more accurate page count would require a server-side implementation
+    // to process files like PDFs. For now, we count 1 file = 1 page.
+    return files.length;
   }, [files]);
 
   const remainingQuota = currentUser ? currentUser.pageQuota - totalPageCount : 0;
@@ -265,3 +267,5 @@ export default function NewOrderPage() {
     </div>
   );
 }
+
+    

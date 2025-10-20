@@ -2,6 +2,9 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Update page counting logic on New Order page
+- Changed the page counting logic to count each uploaded file as one page. This is a temporary, more predictable solution until proper server-side page counting can be implemented.
+
 ## [2024-07-26] - Add Order Type Selection
 - Added a radio button group on the "New Order" page for users to select between "Assignment" and "Practical".
 - Updated the `Order` type in `src/types/index.ts` to include an `orderType` field.
@@ -35,3 +38,5 @@ This file will be updated with a log of all changes made to the application code
 
 ## [YYYY-MM-DD] - Initial Setup
 - Created `changelog.md` to track codebase modifications.
+
+    
