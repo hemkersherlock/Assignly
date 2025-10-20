@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User as AppUser } from '@/types';
 import { useFirebase } from "@/firebase";
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import { signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { Skeleton } from '@/components/ui/skeleton';
 
 
