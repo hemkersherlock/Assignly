@@ -2,6 +2,11 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Configure for Google Drive Service Account
+- Removed `next-auth` as it is not needed for a Service Account integration.
+- Updated `.env` to hold the Service Account JSON key and the target Google Drive folder ID.
+- Provided user with manual steps to create a Service Account, get the JSON key, and share a Drive folder.
+
 ## [2024-07-26] - Prepare for Google Drive Integration
 - Added `next-auth` and `googleapis` packages to `package.json`.
 - Created placeholder environment variables in `.env` for Google OAuth credentials. This lays the groundwork for connecting to Google Drive.
