@@ -2,6 +2,11 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Implement Accurate PDF Page Counting
+- Added `pdfjs-dist` library to the project.
+- Updated the "New Order" page to count the exact number of pages for uploaded PDF files.
+- Files other than PDFs are counted as a single page. This significantly improves the accuracy of the billing summary.
+
 ## [2024-07-26] - Update page counting logic on New Order page
 - Changed the page counting logic to count each uploaded file as one page. This is a temporary, more predictable solution until proper server-side page counting can be implemented.
 

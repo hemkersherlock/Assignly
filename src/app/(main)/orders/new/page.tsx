@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -12,6 +12,13 @@ import { useToast } from "@/hooks/use-toast";
 import { mockUsers } from "@/lib/mock-data";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import * as pdfjs from 'pdfjs-dist';
+
+// Configure the worker for pdf.js
+if (typeof window !== 'undefined') {
+  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+}
+
 
 // Mock current user
 const currentUser = mockUsers.find(u => u.role === 'student');
@@ -58,14 +65,48 @@ export default function NewOrderPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [orderType, setOrderType] = useState<'assignment' | 'practical'>('assignment');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
   const router = useRouter();
   const { toast } = useToast();
 
   const totalPageCount = useMemo(() => {
-    // A more accurate page count would require a server-side implementation
-    // to process files like PDFs. For now, we count 1 file = 1 page.
-    return files.length;
-  }, [files]);
+    return files.reduce((acc, file) => acc + (pageCounts[file.name] || 0), 0);
+  }, [files, pageCounts]);
+
+  useEffect(() => {
+    const getPageCount = async (file: File) => {
+        if (file.type === 'application/pdf') {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjs.getDocument(arrayBuffer).promise;
+                return pdf.numPages;
+            } catch (error) {
+                console.error("Error reading PDF:", error);
+                toast({ variant: "destructive", title: "Could not read PDF file." });
+                return 1; // Default to 1 page on error
+            }
+        }
+        return 1; // 1 page for non-PDF files
+    };
+
+    const processFiles = async () => {
+        const newPageCounts: Record<string, number> = {};
+        for (const file of files) {
+            if (!(file.name in pageCounts)) {
+                const count = await getPageCount(file);
+                newPageCounts[file.name] = count;
+            } else {
+                newPageCounts[file.name] = pageCounts[file.name];
+            }
+        }
+        setPageCounts(prev => ({...prev, ...newPageCounts}));
+    };
+
+    if(files.length > 0) {
+        processFiles();
+    }
+  }, [files, toast, pageCounts]);
+
 
   const remainingQuota = currentUser ? currentUser.pageQuota - totalPageCount : 0;
   const hasSufficientQuota = remainingQuota >= 0;
@@ -96,17 +137,21 @@ export default function NewOrderPage() {
   };
 
   const removeFile = (index: number) => {
+    const fileToRemove = files[index];
     setFiles(files.filter((_, i) => i !== index));
+    const newPageCounts = {...pageCounts};
+    delete newPageCounts[fileToRemove.name];
+    setPageCounts(newPageCounts);
   };
   
   const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (event.dataTransfer.files && files.length === 0) {
+    if (event.dataTransfer.files) {
       const newFiles = Array.from(event.dataTransfer.files);
       setFiles(prevFiles => [...prevFiles, ...newFiles]);
     }
-  }, [files]);
+  }, []);
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -267,5 +312,3 @@ export default function NewOrderPage() {
     </div>
   );
 }
-
-    
