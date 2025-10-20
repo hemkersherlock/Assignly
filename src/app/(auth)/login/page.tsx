@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useFirebase, useFirestore } from "@/firebase";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, UserCredential } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,9 +32,6 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user && firestore) {
-      // The redirect is now handled by the AuthProvider,
-      // so we can keep this effect minimal or remove it.
-      // For now, let's keep it to be safe during the transition.
       const userDocRef = doc(firestore, "users", user.uid);
       getDoc(userDocRef).then(userDoc => {
         if (userDoc.exists()) {
@@ -81,14 +78,14 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // On success, the AuthProvider/useEffect will handle redirection
+      // On success, the useEffect will handle redirection
     } catch (error: any) {
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
             // If user doesn't exist, try creating them.
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 await createUserDocument(userCredential);
-                // On success, the AuthProvider/useEffect will handle redirection
+                // On success, the useEffect will handle redirection
             } catch (creationError: any) {
                  console.error("User creation failed:", creationError);
                  setError(`Could not sign in or create account. (${creationError.code})`);
