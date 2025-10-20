@@ -3,7 +3,7 @@
 
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import type { User as AppUser } from '@/types'; // Renamed to avoid conflict
+import type { User as AppUser } from '@/types';
 import { useFirebase } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { doc, getDoc } from 'firebase/firestore';
@@ -26,8 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const checkUser = async () => {
       if (isUserLoading || !firestore) {
-        // Wait until firebase auth state is resolved and firestore is available
-        return;
+        return; // Wait until firebase auth state is resolved and firestore is available
       }
 
       if (firebaseUser) {
@@ -37,9 +36,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (userDoc.exists()) {
                 setAppUser(userDoc.data() as AppUser);
             } else {
-                // This can happen briefly if the document isn't created yet.
-                // We will retry or depend on the login page to create it.
-                console.warn("User document not found in Firestore, might be a race condition.");
+                // This can happen if the document isn't created yet.
+                // We'll set appUser to null for now, and the redirection logic will wait.
+                // The login page is responsible for creating the document.
                 setAppUser(null);
             }
         } catch (e) {
@@ -55,13 +54,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [firebaseUser, isUserLoading, firestore]);
   
   useEffect(() => {
-    if (!authLoading) {
-      const isAuthPage = pathname === '/login';
-      if (!appUser && !isAuthPage) {
-        router.push('/login');
+    // This effect handles all redirection logic for the app.
+    if (authLoading) {
+      return; // Do nothing while we are determining auth state.
+    }
+
+    const isAuthPage = pathname === '/login';
+
+    if (appUser) {
+      // User is logged in.
+      if (isAuthPage) {
+        // If they are on the login page, redirect them to their dashboard.
+        const targetDashboard = appUser.role === 'admin' ? '/admin' : '/dashboard';
+        router.push(targetDashboard);
       }
-      if (appUser && isAuthPage) {
-        router.push(appUser.role === 'admin' ? '/admin' : '/dashboard');
+    } else {
+      // User is not logged in.
+      if (!isAuthPage) {
+        // If they are on any page other than login, redirect them to login.
+        router.push('/login');
       }
     }
   }, [appUser, authLoading, pathname, router]);
@@ -71,15 +82,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (auth) {
       auth.signOut();
     }
-    setAppUser(null);
-    router.push('/login');
   };
 
   const value = { user: appUser, loading: authLoading, logout };
   
   const isAuthPage = pathname === '/login';
 
-  // Show loading skeleton if we are loading auth state and not on the login page
+  // While loading, if we aren't on the login page, show a skeleton screen.
+  // This prevents a flash of content for protected pages.
   if (authLoading && !isAuthPage) {
     return (
         <div className="flex h-screen w-full items-center justify-center">
@@ -93,17 +103,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     )
   }
 
-  // If we are not loading, and we don't have a user, and we're not on the login page,
-  // the effect to redirect will fire, but we can prevent rendering the children to avoid flashes.
-  if (!authLoading && !appUser && !isAuthPage) {
-      return null; // Or return the loading skeleton
+  // If we have finished loading, and we are not on an auth page, but there's no user,
+  // we return null. The redirection effect will handle sending them to the login page.
+  if (!authLoading && !isAuthPage && !appUser) {
+      return null;
   }
-
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuthContext = () => { // Renamed to avoid conflict with firebase/useAuth
+export const useAuthContext = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuthContext must be used within an AuthProvider');

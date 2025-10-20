@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useFirebase, useFirestore } from "@/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, UserCredential } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,7 +67,6 @@ export default function LoginPage() {
       // On success, the AuthContext will handle redirection
     } catch (error: any) {
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-            // If user doesn't exist, try creating them.
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 await createUserDocument(userCredential);

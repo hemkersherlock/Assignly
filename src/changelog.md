@@ -2,6 +2,9 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Fix Login Redirection Logic
+- Refactored the authentication flow to centralize redirection logic within `AuthContext`. This resolves a race condition where the application would get stuck on the login page after a successful sign-in. The context now correctly waits for the user's Firestore document to be available before attempting to redirect.
+
 ## [2024-07-26] - Fix `auth/invalid-credential` Error on Login
 - Updated the login page to automatically create user accounts (`student@assignly.com`, `admin@assignly.com`) if they don't already exist in Firebase Authentication. This resolves the `auth/invalid-credential` error during the first sign-in attempt.
 
