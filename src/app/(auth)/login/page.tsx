@@ -47,6 +47,7 @@ export default function LoginPage() {
         lastPaymentDate: null,
         amountPaid: 0,
     };
+    // Use setDoc with merge:true to avoid overwriting if the doc somehow exists.
     await setDoc(userDocRef, newUser, { merge: true });
   };
 
@@ -62,16 +63,16 @@ export default function LoginPage() {
     }
 
     try {
-      // First, try to sign in normally.
+      // First, try to sign in normally. We MUST await this.
       await signInWithEmailAndPassword(auth, email, password);
       // On success, the AuthContext will handle redirection.
     } catch (error: any) {
         // If sign-in fails because the user doesn't exist, create the account.
         if (error.code === 'auth/user-not-found') {
             try {
-                // Create the user in Firebase Auth.
+                // Create the user in Firebase Auth. We MUST await this.
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                // Now, create the corresponding user document in Firestore.
+                // Now, create the corresponding user document in Firestore. We MUST await this.
                 await createUserDocument(userCredential);
                 // On success, the AuthContext will see the new user and handle redirection.
             } catch (creationError: any) {
