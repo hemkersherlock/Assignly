@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { useFirebase, useFirestore } from "@/firebase";
+import { useFirebase } from "@/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, UserCredential } from "firebase/auth";
 import { Button } from "@/components/ui/button";
@@ -47,8 +47,7 @@ export default function LoginPage() {
         lastPaymentDate: null,
         amountPaid: 0,
     };
-    // This is a crucial step. We MUST await this to ensure the document is created.
-    await setDoc(userDocRef, newUser);
+    await setDoc(userDocRef, newUser, { merge: true });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -63,16 +62,16 @@ export default function LoginPage() {
     }
 
     try {
-      // First, try to sign in normally. We MUST await the result.
+      // First, try to sign in normally.
       await signInWithEmailAndPassword(auth, email, password);
       // On success, the AuthContext will handle redirection.
     } catch (error: any) {
         // If sign-in fails because the user doesn't exist, create the account.
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        if (error.code === 'auth/user-not-found') {
             try {
-                // Create the user in Firebase Auth. We MUST await this.
+                // Create the user in Firebase Auth.
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                // Now, create the corresponding user document in Firestore. We MUST await this.
+                // Now, create the corresponding user document in Firestore.
                 await createUserDocument(userCredential);
                 // On success, the AuthContext will see the new user and handle redirection.
             } catch (creationError: any) {
@@ -80,12 +79,11 @@ export default function LoginPage() {
                  setError(`Could not sign in or create account. (${creationError.code})`);
             }
         } else {
-            // Handle other login errors (e.g., wrong password)
+            // Handle other login errors (e.g., wrong password, email already in use)
             console.error("Login failed:", error);
             setError(`Login failed: ${error.message}`);
         }
     } finally {
-      // This runs whether the login/creation succeeded or failed.
       setLoading(false);
     }
   };
