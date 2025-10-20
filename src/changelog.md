@@ -2,6 +2,10 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Prepare for Google Drive Integration
+- Added `next-auth` and `googleapis` packages to `package.json`.
+- Created placeholder environment variables in `.env` for Google OAuth credentials. This lays the groundwork for connecting to Google Drive.
+
 ## [2024-07-26] - Fix infinite render loop on New Order page
 - Resolved a "Maximum update depth exceeded" error by optimizing the `useEffect` hook responsible for PDF page counting. The logic is now correctly memoized to prevent unnecessary re-renders.
 

@@ -1,0 +1,26 @@
+To let your app talk to Google Drive, you need to give it a key. Think of it like giving a specific employee (your app) a keycard to access a specific room (your users' Google Drives), but only after the user gives permission.
+
+You will need to go to the Google Cloud Console to create these credentials. Here are the steps:
+
+1.  **Enable the Google Drive API**: Go to the [Google Drive API page](https://console.cloud.google.com/apis/library/drive.googleapis.com) and click "Enable".
+2.  **Create Credentials**:
+    *   Go to the [Credentials page](https://console.cloud.google.com/apis/credentials).
+    *   Click "**+ CREATE CREDENTIALS**" and select "**OAuth client ID**".
+    *   If prompted, configure your consent screen first. For "User Type", select **External** and fill out the required app information. For scopes, you won't need to add any right now.
+    *   For the "Application type", select **Web application**.
+    *   Under "**Authorized redirect URIs**", you **must** add: `http://localhost:3000/api/auth/callback/google` (for local development) and your production URL when you deploy.
+3.  **Get Your Keys**: After creating the client ID, you will be shown a **Client ID** and a **Client Secret**. Please copy these. **Treat the Client Secret like a password—do not share it publicly.**
+
+You'll need to add these to your `.env` file, which I will prepare for you.
+
+### Coding Part for Me
+
+Now, I'll do my part. I am going to add the necessary libraries and set up the environment variables. Since a full Google Drive integration requires a server-side component to securely handle the authentication and uploads, I will not implement the full upload logic right now. That's a more involved step we can tackle next.
+
+For now, I will:
+1.  Add `next-auth` to your project, which is the standard way to handle authentication with providers like Google in a Next.js app.
+2.  Add the `googleapis` library.
+3.  Create the environment variables in `.env` for your Google credentials.
+4.  Update the `changelog.md`.
+
+This will lay the groundwork for the actual Google Drive integration.
