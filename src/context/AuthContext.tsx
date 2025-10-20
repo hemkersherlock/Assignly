@@ -4,7 +4,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User as AppUser } from '@/types';
-import { useFirebase, useUser } from "@/firebase";
+import { useFirebase } from "@/firebase";
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { signOut, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,28 +22,36 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { auth, firestore } = useFirebase();
-  const { user: firebaseUser, isUserLoading: isFirebaseUserLoading } = useUser();
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+    });
+    return () => unsubscribe();
+  }, [auth]);
+
+  useEffect(() => {
     const manageUser = async () => {
-        if (isFirebaseUserLoading) return;
+        if (firebaseUser === undefined) return; // Wait for auth state to be determined
         
         if (firebaseUser) {
           const userDocRef = doc(firestore, "users", firebaseUser.uid);
           let userDoc = await getDoc(userDocRef);
 
-          // If user document doesn't exist, create it.
           if (!userDoc.exists()) {
             console.log(`User document for ${firebaseUser.uid} not found. Creating it now.`);
-            const isStudent = firebaseUser.email?.toLowerCase().includes('student');
+            const isAdmin = firebaseUser.email?.toLowerCase() === 'admin@assignly.com';
+            const newUserRole = isAdmin ? "admin" : "student";
+            
             const newUser: Omit<AppUser, 'id' | 'quotaLastReplenished' | 'createdAt' | 'lastPaymentDate'> & { quotaLastReplenished: any, createdAt: any, lastPaymentDate: any } = {
                 email: firebaseUser.email || 'unknown@example.com',
-                role: isStudent ? "student" : "admin",
-                pageQuota: isStudent ? 40 : 999,
+                role: newUserRole,
+                pageQuota: newUserRole === 'student' ? 40 : 999,
                 quotaLastReplenished: serverTimestamp(),
                 totalOrdersPlaced: 0,
                 totalPagesUsed: 0,
@@ -55,8 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             };
             try {
               await setDoc(userDocRef, newUser);
-              // Re-fetch the document after creating it
-              userDoc = await getDoc(userDocRef);
+              userDoc = await getDoc(userDocRef); // Re-fetch the document
             } catch (error) {
                 console.error("Error creating user document:", error);
                 setAppUser(null);
@@ -67,7 +74,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           if (userDoc.exists()) {
             const userData = userDoc.data() as Omit<AppUser, 'id'>;
-            // Ensure Timestamps are converted to Dates
             const lastReplenished = userData.quotaLastReplenished as unknown as Timestamp;
             const createdAt = userData.createdAt as unknown as Timestamp;
             const lastPayment = userData.lastPaymentDate as unknown as Timestamp | null;
@@ -87,24 +93,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     manageUser();
-  }, [firebaseUser, isFirebaseUserLoading, firestore]);
+  }, [firebaseUser, firestore]);
   
 
   useEffect(() => {
-    // Wait until the initial loading is complete before doing any redirects
     if (loading) {
       return;
     }
 
     const isAuthPage = pathname === '/login';
 
-    // If we have a user and they are on the login page, redirect them.
     if (appUser && isAuthPage) {
       const targetDashboard = appUser.role === 'admin' ? '/admin' : '/dashboard';
       router.push(targetDashboard);
     }
     
-    // If we DON'T have a user and they are NOT on the login page, send them to login.
     if (!appUser && !isAuthPage) {
       router.push('/login');
     }
@@ -113,12 +116,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, pass: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
-      // Let the useEffect hooks handle document creation and redirection.
     } catch (error: any) {
       if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         try {
           await createUserWithEmailAndPassword(auth, email, pass);
-           // Let the useEffect hooks handle document creation and redirection.
         } catch (creationError: any) {
           console.error("Failed to create user:", creationError);
           throw new Error("Could not sign in or create account. (" + creationError.code + ")");
@@ -133,13 +134,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     await signOut(auth);
     setAppUser(null);
+    setFirebaseUser(null);
     router.push('/login');
   };
 
   const value = { user: appUser, firebaseUser, loading, login, logout };
   
-  // While loading and not on an auth page, show a skeleton loader.
-  // This prevents a flash of the login page for already authenticated users.
   if (loading && pathname !== '/login') {
     return (
         <div className="flex h-screen w-full items-center justify-center">
