@@ -1,96 +1,101 @@
 /**
- * @file Firebase Security Rules for Assignly Application
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for user profiles and their associated orders.
+ *   Analytics data is publicly readable but only writable by a server.
  *
- * @core_philosophy This ruleset enforces a strict user-ownership model for user profiles and their associated orders.
- *   Analytics data is globally readable but not writable from the client.
+ * @dataStructure
+ *   /users/{userId} - User profiles, accessible only by the owner.
+ *   /users/{userId}/orders/{orderId} - Orders placed by a specific user, accessible only by the owner.
+ *   /analytics/{analyticsId} - Application analytics, publicly readable, writable by server only.
  *
- * @data_structure
- *   - `/users/{userId}`: Stores user profiles, accessible only by the user themselves.
- *   - `/users/{userId}/orders/{orderId}`: Stores orders placed by users, accessible only by the user who created them.
- *   - `/analytics/{analyticsId}`: Stores global analytics data, readable by all, but writable only through backend functions.
- *
- * @key_security_decisions
- *   - Users can only access their own data.
- *   - Listing all users is disallowed.
+ * @keySecurityDecisions
+ *   - Users can only access their own user profile and orders.
+ *   - Public listing of users is disallowed.
  *   - Analytics data is publicly readable but not writable by clients.
- *   - Data consistency is enforced between the path and document's internal `id` field.
- *   - Documents must exist before they can be updated or deleted.
  *
- * @denormalization_for_authorization The `Order` documents under the `/users/{userId}/orders/{orderId}` path include a denormalized `studentId` field,
- *   which is used to efficiently check ownership without requiring additional reads.
+ * @denormalizationForAuthorization
+ *   - The `Order` entity in `/users/{userId}/orders/{orderId}` contains a `studentId` field that MUST match the `userId` in the path. This ensures that orders are only accessed within the correct user context.
  *
- * @structural_segregation The separation of user profiles, orders, and analytics into distinct collections enables granular access control and simplifies query security.
+ * @structuralSegregation
+ *   - User profiles and orders are stored under the `/users/{userId}` path, ensuring clear ownership and separation from other user data.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile documents. Only the user themselves can read or modify their profile.
+     * @description Controls access to user profiles.
      * @path /users/{userId}
-     * @allow (create) User 'user_abc' with id 'user_abc' can create their profile.
-     * @allow (get, update, delete) User 'user_abc' can read, update, and delete their profile.
-     * @deny (create) User 'user_xyz' cannot create a profile with id 'user_abc'.
-     * @deny (get, update, delete) User 'user_xyz' cannot read, update, or delete profile 'user_abc'.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) - Authenticated user can create their own profile if the userId matches their auth.uid.
+     * @allow (get, list) - Authenticated user can read their own profile if the userId matches their auth.uid.
+     * @allow (update, delete) - Authenticated user can update or delete their own profile if the userId matches their auth.uid and the document exists.
+     * @deny (create) - Creation is denied if the userId does not match the authenticated user's ID.
+     * @deny (update, delete) - Updates or deletes are denied if the userId does not match the authenticated user's ID or the document doesn't exist.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
+      // Function to check if the user is signed in
       function isSignedIn() {
         return request.auth != null;
       }
 
+      // Function to check if the requesting user is the owner of the document
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return isSignedIn() && request.auth.uid == userId;
       }
 
+      // Function to check if the user is the owner and the document exists
       function isExistingOwner(userId) {
         return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
-      allow list: if false; // Disallowing listing all users for privacy
+      allow list: if false; // prevent listing all users
 
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to order documents within a user's profile. Only the user who placed the order can access it.
+     * @description Controls access to orders placed by users.
      * @path /users/{userId}/orders/{orderId}
-     * @allow (create) User 'user_abc' can create a new order under their profile.
-     * @allow (get, update, delete) User 'user_abc' can read, update, and delete their order.
-     * @deny (create) User 'user_xyz' cannot create an order under user 'user_abc''s profile.
-     * @deny (get, update, delete) User 'user_xyz' cannot read, update, or delete an order under user 'user_abc''s profile.
-     * @principle Enforces document ownership for writes within a user's data tree.  Orders include `studentId`, ensuring clear ownership.
+     * @allow (create) - Authenticated user can create an order under their profile if the studentId matches their auth.uid.
+     * @allow (get, list) - Authenticated user can read orders under their profile if the userId matches their auth.uid.
+     * @allow (update, delete) - Authenticated user can update or delete orders under their profile if the userId matches their auth.uid and the document exists.
+     * @deny (create) - Creation is denied if the studentId does not match the authenticated user's ID.
+     * @deny (update, delete) - Updates or deletes are denied if the userId does not match the authenticated user's ID or the document doesn't exist.
+     * @principle Enforces document ownership for orders within a user's profile.
      */
     match /users/{userId}/orders/{orderId} {
+      // Function to check if the user is signed in
       function isSignedIn() {
         return request.auth != null;
       }
 
+      // Function to check if the requesting user is the owner of the document
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return isSignedIn() && request.auth.uid == userId;
       }
 
+       // Function to check if the user is the owner and the document exists
       function isExistingOwner(userId) {
         return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.studentId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.studentId == resource.data.studentId;
+      allow create: if isOwner(userId) && request.resource.data.studentId == userId;
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to analytics documents.  Analytics data is publicly readable but not writable from the client.
+     * @description Controls access to analytics data.
      * @path /analytics/{analyticsId}
-     * @allow (get, list) All users can read analytics data.
-     * @deny (create, update, delete) No client-side writes allowed.
-     * @principle Allows public read access for analytics data but restricts write access to prevent unauthorized modifications.
+     * @allow (get, list) - Any user can read analytics data.
+     * @deny (create, update, delete) - No client can create, update, or delete analytics data.
+     * @principle Restricts write access to analytics data to prevent unauthorized modification.
      */
     match /analytics/{analyticsId} {
       allow get, list: if true;

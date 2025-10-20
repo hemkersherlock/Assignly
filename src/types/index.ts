@@ -34,26 +34,20 @@ export interface Order {
 
 export interface DailyAnalytics {
   id: string; // e.g., "daily_2023_10_27"
-  totalOrders: number;
-  completedOrders: number;
-  pendingOrders: number;
-  totalPagesProcessed: number;
-  averageTurnaroundHours: number;
-  activeStudents: number;
+  date: Date;
   ordersReceived: number;
   ordersCompleted: number;
-pagesProcessed: number;
-  date: Date;
+  pagesProcessed: number;
 }
 
 export interface MonthlyAnalytics {
     id: string; // e.g., "monthly_2023_10"
+    month: string;
     totalOrders: number;
-    completedOrders: number;
-    pendingOrders: number;
     totalPagesProcessed: number;
     averageTurnaroundHours: number;
+    completedOrders: number;
+    pendingOrders: number;
     activeStudents: number;
     revenue?: number; // Optional
-    month: string;
 }
