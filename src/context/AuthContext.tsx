@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User as AppUser } from '@/types';
 import { useFirebase } from "@/firebase";
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import { signOut, User as FirebaseUser, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signOut, User as FirebaseUser, onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { Skeleton } from '@/components/ui/skeleton';
 
 
@@ -48,8 +48,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           if (!userDoc.exists()) {
             console.log(`User document for ${firebaseUser.uid} not found. Creating it now.`);
-            const isAdmin = firebaseUser.email?.toLowerCase() === 'admin@assignly.com';
-            const newUserRole = isAdmin ? "admin" : "student";
+            
+            // Check for admin role
+            const adminRoleRef = doc(firestore, "roles_admin", firebaseUser.uid);
+            const adminDoc = await getDoc(adminRoleRef);
+            const newUserRole = adminDoc.exists() ? "admin" : "student";
             
             const newUser: Omit<AppUser, 'id' | 'quotaLastReplenished' | 'createdAt' | 'lastPaymentDate'> & { quotaLastReplenished: any, createdAt: any, lastPaymentDate: any } = {
                 email: firebaseUser.email || 'unknown@example.com',
@@ -119,23 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [appUser, loading, pathname, router]);
 
   const login = async (email: string, pass: string) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, pass);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
-        // If user not found, create them. This also signs them in.
-        try {
-          await createUserWithEmailAndPassword(auth, email, pass);
-        } catch (creationError: any) {
-          console.error("Failed to create user:", creationError);
-          throw new Error("Could not create account. (" + creationError.code + ")");
-        }
-      } else {
-        // Handle other errors like wrong password
-        console.error("Login failed:", error);
-        throw new Error("Login failed. Please check your credentials.");
-      }
-    }
+    await signInWithEmailAndPassword(auth, email, pass);
   }
 
   const logout = async () => {

@@ -13,14 +13,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Logo from "@/components/shared/Logo";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Terminal } from "lucide-react";
 import { useAuthContext } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("password");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuthContext();
@@ -31,9 +29,13 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      // On successful login or signup, the AuthContext's useEffect will handle redirection.
+      // On successful login, the AuthContext's useEffect will handle redirection.
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found') {
+        setError("Invalid email or password. Please try again.");
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
       console.error(err);
     } finally {
         setIsLoading(false);
@@ -47,7 +49,7 @@ export default function LoginPage() {
             <Logo className="h-8 w-8" />
             <CardTitle className="text-3xl font-bold">Assignly</CardTitle>
         </div>
-        <CardDescription>Enter your email below to login or create an account</CardDescription>
+        <CardDescription>Enter your email and password to login</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleLogin} className="space-y-4">
@@ -56,7 +58,7 @@ export default function LoginPage() {
             <Input
               id="email"
               type="email"
-              placeholder="student@assignly.com"
+              placeholder="user@example.com"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -77,15 +79,9 @@ export default function LoginPage() {
           {error && <p className="text-sm text-red-500">{error}</p>}
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? <Loader2 className="mr-2 animate-spin" /> : null}
-            {isLoading ? "Please wait..." : "Login / Sign Up"}
+            {isLoading ? "Please wait..." : "Login"}
           </Button>
         </form>
-         <Alert className="mt-4">
-            <Terminal className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-                Use <code className="font-semibold">student@assignly.com</code>, <code className="font-semibold">admin@assignly.com</code>, or any other email to sign up. Any password will work.
-            </AlertDescription>
-        </Alert>
       </CardContent>
     </Card>
   );
