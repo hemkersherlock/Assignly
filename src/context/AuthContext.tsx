@@ -7,6 +7,8 @@ import type { User as AppUser } from '@/types';
 import { useFirebase } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { doc, getDoc } from 'firebase/firestore';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -31,20 +33,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (firebaseUser) {
         const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-        try {
-            const userDoc = await getDoc(userDocRef);
+        
+        getDoc(userDocRef)
+          .then(userDoc => {
             if (userDoc.exists()) {
                 setAppUser(userDoc.data() as AppUser);
             } else {
-                // This can happen if the document isn't created yet.
-                // We'll set appUser to null for now, and the redirection logic will wait.
-                // The login page is responsible for creating the document.
                 setAppUser(null);
             }
-        } catch (e) {
-            console.error("Error fetching user document:", e);
-            setAppUser(null);
-        }
+          })
+          .catch(serverError => {
+              const permissionError = new FirestorePermissionError({
+                  path: userDocRef.path,
+                  operation: 'get',
+              });
+              errorEmitter.emit('permission-error', permissionError);
+              setAppUser(null);
+          });
+
       } else {
         setAppUser(null);
       }
