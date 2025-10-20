@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth, useFirebase, useFirestore } from "@/firebase";
+import { useFirebase, useFirestore } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { auth, user } = useAuth();
+  const { auth, user } = useFirebase();
   const firestore = useFirestore();
   const router = useRouter();
 
