@@ -25,18 +25,16 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuthContext();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const result = login(email, password);
-    if (result.success) {
-        if (result.role === 'admin') {
-            router.push('/admin');
-        } else {
-            router.push('/dashboard');
-        }
-    } else {
-      setError(result.error);
+    try {
+      await login(email, password);
+      // On successful login, the AuthContext's useEffect will handle redirection.
+      // No need to push history here.
+    } catch (err: any) {
+      setError(err.message);
+      console.error(err);
     }
   };
 
