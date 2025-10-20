@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { UploadCloud, File as FileIcon, X, Loader2, Info, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { mockUsers } from "@/lib/mock-data";
@@ -55,6 +56,7 @@ function FilePreview({ file, onRemove, isSubmitting }: { file: File, onRemove: (
 export default function NewOrderPage() {
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [orderType, setOrderType] = useState<'assignment' | 'practical'>('assignment');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
@@ -142,7 +144,7 @@ export default function NewOrderPage() {
             <CardTitle>Create New Order</CardTitle>
             <CardDescription>Give your assignment a title and upload the necessary files.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div className="space-y-2">
                 <Label htmlFor="assignment-title">Assignment Title</Label>
                 <Input 
@@ -152,6 +154,25 @@ export default function NewOrderPage() {
                     onChange={(e) => setAssignmentTitle(e.target.value)}
                     disabled={isSubmitting}
                 />
+            </div>
+
+            <div className="space-y-3">
+              <Label>Order Type</Label>
+              <RadioGroup
+                defaultValue="assignment"
+                className="flex gap-4"
+                onValueChange={(value: 'assignment' | 'practical') => setOrderType(value)}
+                disabled={isSubmitting}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="assignment" id="r1" />
+                  <Label htmlFor="r1" className="font-normal cursor-pointer">Assignment</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="practical" id="r2" />
+                  <Label htmlFor="r2" className="font-normal cursor-pointer">Practical</Label>
+                </div>
+              </RadioGroup>
             </div>
             
             <div className="space-y-2">

@@ -2,6 +2,11 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Add Order Type Selection
+- Added a radio button group on the "New Order" page for users to select between "Assignment" and "Practical".
+- Updated the `Order` type in `src/types/index.ts` to include an `orderType` field.
+- Updated `src/lib/mock-data.ts` to reflect the new `orderType` field in mock orders.
+
 ## [2024-07-26] - Fix `React is not defined` error on New Order page
 - Added the missing `useRef` import from `react` to resolve a runtime error.
 

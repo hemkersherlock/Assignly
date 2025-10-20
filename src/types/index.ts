@@ -18,6 +18,7 @@ export interface Order {
   studentId: string;
   studentEmail: string;
   originalFileName: string;
+  orderType: "assignment" | "practical";
   originalFileUrl: string;
   googleDriveFileId: string | null;
   pageCount: number;
