@@ -4,41 +4,41 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user in the Assignly application.",
+      "description": "Represents a user of the Assignly application, storing their role, quota, and activity information.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the user entity."
+          "description": "Unique identifier for the User entity."
         },
         "email": {
           "type": "string",
-          "description": "The user's email address.",
+          "description": "Email address of the user.",
           "format": "email"
         },
         "role": {
           "type": "string",
-          "description": "The user's role in the application (e.g., 'student' or 'admin')."
+          "description": "Role of the user (student or admin)."
         },
         "pageQuota": {
           "type": "number",
-          "description": "The number of pages the user is allowed to submit per month."
+          "description": "Number of pages the user is allowed per month."
         },
         "quotaLastReplenished": {
           "type": "string",
-          "description": "The date and time when the user's quota was last replenished.",
+          "description": "Timestamp of the last time the user's quota was replenished.",
           "format": "date-time"
         },
         "totalOrdersPlaced": {
           "type": "number",
-          "description": "The total number of orders the user has placed."
+          "description": "Total number of orders placed by the user."
         },
         "totalPagesUsed": {
           "type": "number",
-          "description": "The total number of pages the user has used."
+          "description": "Total number of pages used by the user."
         },
         "createdAt": {
           "type": "string",
-          "description": "The date and time when the user account was created.",
+          "description": "Timestamp of when the user was created.",
           "format": "date-time"
         },
         "isActive": {
@@ -47,16 +47,16 @@
         },
         "paymentStatus": {
           "type": "string",
-          "description": "The payment status of the user (e.g., 'paid', 'pending', 'overdue')."
+          "description": "Payment status of the user (paid, pending, or overdue)."
         },
         "lastPaymentDate": {
           "type": "string",
-          "description": "The date and time of the user's last payment.",
+          "description": "Timestamp of the user's last payment.",
           "format": "date-time"
         },
         "amountPaid": {
           "type": "number",
-          "description": "The amount paid by the user."
+          "description": "Total amount paid by the user."
         }
       },
       "required": [
@@ -69,8 +69,7 @@
         "totalPagesUsed",
         "createdAt",
         "isActive",
-        "paymentStatus",
-        "amountPaid"
+        "paymentStatus"
       ]
     },
     "Order": {
@@ -81,7 +80,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the order entity."
+          "description": "Unique identifier for the Order entity."
         },
         "studentId": {
           "type": "string",
@@ -89,50 +88,61 @@
         },
         "studentEmail": {
           "type": "string",
-          "description": "The student's email address."
+          "description": "Email address of the student who placed the order.",
+          "format": "email"
         },
         "originalFileName": {
           "type": "string",
-          "description": "The original name of the uploaded file."
+          "description": "Name of the original file uploaded by the student."
         },
         "originalFileUrl": {
           "type": "string",
-          "description": "The URL of the original file stored in Firebase Storage."
+          "description": "URL of the original file stored in Firebase Storage.",
+          "format": "uri"
+        },
+        "googleDriveFileId": {
+          "type": "string",
+          "description": "ID of the file in Google Drive, if imported from there."
         },
         "pageCount": {
           "type": "number",
-          "description": "The number of pages in the original document."
+          "description": "Number of pages in the document."
         },
         "status": {
           "type": "string",
-          "description": "The status of the order (e.g., 'pending', 'in_progress', 'completed')."
+          "description": "Status of the order (pending, in_progress, completed)."
         },
         "completedFileUrl": {
           "type": "string",
-          "description": "The URL of the completed file stored in Firebase Storage."
+          "description": "URL of the completed file in Firebase Storage.",
+          "format": "uri"
+        },
+        "completedGoogleDriveId": {
+          "type": "string",
+          "description": "ID of the completed file in Google Drive, if exported there."
         },
         "createdAt": {
           "type": "string",
-          "description": "The date and time when the order was created.",
+          "description": "Timestamp of when the order was created.",
           "format": "date-time"
         },
         "startedAt": {
           "type": "string",
-          "description": "The date and time when the order was started.",
+          "description": "Timestamp of when the order was started (admin marked in progress).",
           "format": "date-time"
         },
         "completedAt": {
           "type": "string",
-          "description": "The date and time when the order was completed.",
+          "description": "Timestamp of when the order was completed.",
           "format": "date-time"
         },
         "turnaroundTimeHours": {
           "type": "number",
-          "description": "The turnaround time for the order in hours."
+          "description": "Turnaround time in hours for the order."
         },
         "notes": {
           "type": "string",
-          "description": "Admin notes for the order."
+          "description": "Notes added by the admin for the order."
         }
       },
       "required": [
@@ -150,57 +160,51 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Analytics",
       "type": "object",
-      "description": "Represents analytics data for the Assignly application.",
+      "description": "Represents analytics data for the application, tracked monthly or daily.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the analytics entity. Document ID format: monthly_{YYYY_MM} or daily_{YYYY_MM_DD}"
+          "description": "Unique identifier for the Analytics entity. Document ID format: monthly_{YYYY_MM} or daily_{YYYY_MM_DD}."
         },
         "totalOrders": {
           "type": "number",
-          "description": "The total number of orders."
+          "description": "Total number of orders."
         },
         "completedOrders": {
           "type": "number",
-          "description": "The total number of completed orders."
+          "description": "Number of completed orders."
         },
         "pendingOrders": {
           "type": "number",
-          "description": "The total number of pending orders."
+          "description": "Number of pending orders."
         },
         "totalPagesProcessed": {
           "type": "number",
-          "description": "The total number of pages processed."
+          "description": "Total number of pages processed."
         },
         "averageTurnaroundHours": {
           "type": "number",
-          "description": "The average turnaround time in hours."
+          "description": "Average turnaround time in hours."
         },
         "activeStudents": {
           "type": "number",
-          "description": "The number of active students."
+          "description": "Number of active students."
         },
         "ordersReceived": {
           "type": "number",
-          "description": "The number of orders received (daily only)."
+          "description": "Number of orders received (daily only)."
         },
         "ordersCompleted": {
           "type": "number",
-          "description": "The number of orders completed (daily only)."
+          "description": "Number of orders completed (daily only)."
         },
         "pagesProcessed": {
           "type": "number",
-          "description": "The number of pages processed (daily only)."
+          "description": "Number of pages processed (daily only)."
         }
       },
       "required": [
-        "id",
-        "totalOrders",
-        "completedOrders",
-        "pendingOrders",
-        "totalPagesProcessed",
-        "averageTurnaroundHours",
-        "activeStudents"
+        "id"
       ]
     }
   },
@@ -219,11 +223,11 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles. Uses path-based ownership for private user data.",
+          "description": "Stores user data.  Only the user or an admin can read. Only admins can write.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier for the user."
+              "description": "The unique identifier of the user."
             }
           ]
         }
@@ -235,15 +239,15 @@
           "schema": {
             "$ref": "#/backend/entities/Order"
           },
-          "description": "Stores orders placed by users. Includes denormalized 'studentId' for authorization independence.",
+          "description": "Stores order data for a specific user. Includes denormalized 'studentId' for authorization independence.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier for the user."
+              "description": "The unique identifier of the user who placed the order."
             },
             {
               "name": "orderId",
-              "description": "The unique identifier for the order."
+              "description": "The unique identifier of the order."
             }
           ]
         }
@@ -255,16 +259,32 @@
           "schema": {
             "$ref": "#/backend/entities/Analytics"
           },
-          "description": "Stores analytics data for the application. Document ID is formatted as 'monthly_{YYYY_MM}' or 'daily_{YYYY_MM_DD}'.",
+          "description": "Stores analytics data. Only admins can read and write.",
           "params": [
             {
               "name": "analyticsId",
-              "description": "The unique identifier for the analytics document (monthly or daily)."
+              "description": "The unique identifier for the analytics document (monthly_{YYYY_MM} or daily_{YYYY_MM_DD})."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "AdminRole",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Indicates if a user is an admin. Existence of document grants admin privileges.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the admin user."
             }
           ]
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to be secure, scalable, and easily debuggable, adhering to the core design principles. It leverages denormalization to ensure Authorization Independence, Structural Segregation for homogeneous security postures, and Access Modeling for standardized authorization. Path-based ownership is used for user-owned data.  The structure supports the required QAPs by segregating data with different access needs (e.g., user-specific orders versus global analytics). The use of denormalization, specifically, copying relevant user data (like roles) into subcollections, eliminates the need for `get()` calls in security rules, enabling atomic operations and improving security. The `orders` subcollection includes `studentId`, ensuring clear ownership. This denormalization avoids hierarchical authorization dependencies, fulfilling Authorization Independence (CRITICAL).  The use of dedicated collections for different types of data (users, orders, analytics) supports QAPs, allowing for secure `list` operations by applying specific rules to each collection without the need for complex filtering within the rules themselves."
+    "reasoning": "The Firestore structure is designed to balance security, scalability, and ease of querying, adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling.  \n\n*   **Users (Private Data):** User data is stored in `/users/{userId}`. This path-based ownership ensures that only the user or an admin can access the specific user's data. Admins can access user documents based on a global admin role (existence of a document in `/roles_admin/{uid}`).\n*   **Orders (User-Owned Data):** Orders are stored in a subcollection `/users/{userId}/orders/{orderId}`.  This structure enforces path-based ownership. Each order document includes a denormalized `studentId` to maintain authorization independence. This denormalization allows security rules to validate order creation requests against the authenticated user's ID (`request.auth.uid`) without needing to perform a `get()` operation to verify ownership. This design supports the QAP of listing a user's orders securely.\n*   **Analytics (Global Data):** Analytics data is stored in the `/analytics/{analyticsId}` collection. This data can be read and written only by admins, as defined by the existence of a document in `/roles_admin/{uid}`.  The `analyticsId` follows a predictable naming convention (`monthly_{YYYY_MM}` or `daily_{YYYY_MM_DD}`).\n\n**Authorization Independence:**\nAuthorization Independence is achieved through denormalization. Specifically, the `orders` subcollection stores the `studentId` within each order document. This eliminates the need for security rules to perform `get()` operations on the parent `user` document to verify ownership when creating or accessing an order.  Instead, security rules can directly compare `request.auth.uid` with the denormalized `studentId` in the `request.resource.data` or `resource.data`.\n\n**QAPs (Rules are not Filters):**\n*   The structure enables secure listing of orders for a specific user because orders are stored in a subcollection of the user's document (`/users/{userId}/orders/{orderId}`). Security rules can easily enforce that only the authenticated user (or an admin) can list orders within their own user document. The segregation ensures that listing orders does not require filtering based on user ID, preventing potential security vulnerabilities.\n\n**Structural Segregation:**\nThe data structure ensures structural segregation by separating user-specific data (users and orders) from global data (analytics). This segregation simplifies the security rules by ensuring that each collection has a homogeneous security posture."
   }
 }
