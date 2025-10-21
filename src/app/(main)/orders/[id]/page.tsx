@@ -1,14 +1,75 @@
 
+"use client";
+
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { mockOrders } from "@/lib/mock-data";
 import { format } from "date-fns";
 import { Download, Save, Clock, Hash, Calendar, CheckCircle, FileText } from "lucide-react";
+import { useFirebase, useMemoFirebase } from "@/firebase";
+import { useAuthContext } from "@/context/AuthContext";
+import { useDoc } from "@/firebase/firestore/use-doc";
+import { doc } from "firebase/firestore";
+import type { Order } from "@/types";
+import { Skeleton } from "@/components/ui/skeleton";
+
+function StudentOrderDetailSkeleton() {
+  return (
+    <Card className="max-w-3xl mx-auto shadow-subtle">
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-80" />
+          </div>
+          <Skeleton className="h-6 w-24" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="flex items-start gap-4">
+            <FileText className="h-5 w-5 text-muted-foreground mt-1" />
+            <div>
+              <p className="text-sm text-muted-foreground">Filename(s)</p>
+              <Skeleton className="h-5 w-48 mt-1" />
+            </div>
+          </div>
+          <div className="flex items-start gap-4">
+            <Hash className="h-5 w-5 text-muted-foreground mt-1" />
+            <div>
+              <p className="text-sm text-muted-foreground">Page Count</p>
+              <Skeleton className="h-5 w-16 mt-1" />
+            </div>
+          </div>
+          <div className="flex items-start gap-4">
+            <Calendar className="h-5 w-5 text-muted-foreground mt-1" />
+            <div>
+              <p className="text-sm text-muted-foreground">Submitted</p>
+              <Skeleton className="h-5 w-32 mt-1" />
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 
 export default function StudentOrderDetailPage({ params }: { params: { id: string } }) {
-  const order = mockOrders.find(o => o.id === params.id);
+  const { user: appUser } = useAuthContext();
+  const { firestore } = useFirebase();
+
+  const orderRef = useMemoFirebase(() => {
+    if (!appUser) return null;
+    return doc(firestore, "users", appUser.id, "orders", params.id);
+  }, [firestore, appUser, params.id]);
+
+  const { data: order, isLoading } = useDoc<Order>(orderRef);
+
+  if (isLoading) {
+    return <StudentOrderDetailSkeleton />;
+  }
 
   if (!order) {
     notFound();
@@ -47,7 +108,7 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
                 <Calendar className="h-5 w-5 text-muted-foreground mt-1" />
                 <div>
                     <p className="text-sm text-muted-foreground">Submitted</p>
-                    <p className="font-semibold">{format(order.createdAt, "PPP p")}</p>
+                    <p className="font-semibold">{format((order.createdAt as any).toDate(), "PPP p")}</p>
                 </div>
             </div>
             {order.status !== 'pending' && order.startedAt && (
@@ -55,7 +116,7 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
                     <Clock className="h-5 w-5 text-muted-foreground mt-1" />
                     <div>
                         <p className="text-sm text-muted-foreground">Processing Started</p>
-                        <p className="font-semibold">{format(order.startedAt, "PPP p")}</p>
+                        <p className="font-semibold">{format((order.startedAt as any).toDate(), "PPP p")}</p>
                     </div>
                 </div>
             )}
@@ -65,7 +126,7 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
                     <CheckCircle className="h-5 w-5 text-green-500 mt-1" />
                     <div>
                         <p className="text-sm text-muted-foreground">Completed</p>
-                        <p className="font-semibold">{format(order.completedAt, "PPP p")}</p>
+                        <p className="font-semibold">{format((order.completedAt as any).toDate(), "PPP p")}</p>
                     </div>
                 </div>
                  <div className="flex items-start gap-4">
@@ -95,5 +156,3 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
     </Card>
   );
 }
-
-    
