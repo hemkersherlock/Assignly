@@ -8,6 +8,8 @@ import { useFirebase } from "@/firebase";
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { signOut, User as FirebaseUser, onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { Skeleton } from '@/components/ui/skeleton';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 interface AuthContextType {
@@ -71,16 +73,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 lastPaymentDate: null,
                 amountPaid: 0,
             };
-            try {
-              await setDoc(userDocRef, newUser);
-              const newUserDoc = await getDoc(userDocRef); // Re-fetch the document
-              userData = newUserDoc.data();
-            } catch (error) {
-                console.error("Error creating user document:", error);
+            
+            // This is the operation that is likely failing.
+            // We've replaced the try/catch with the non-blocking error emitting pattern.
+            setDoc(userDocRef, newUser).catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: userDocRef.path,
+                    operation: 'create',
+                    requestResourceData: newUser,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+
+                // If document creation fails, we can't proceed.
                 setAppUser(null);
                 setLoading(false);
-                return;
-            }
+            });
+
+            // Optimistically assume the write will succeed for the UI,
+            // the listener will catch the failure.
+            const newUserDoc = await getDoc(userDocRef);
+            userData = newUserDoc.data();
+
           }
 
           if (userData) {
@@ -97,6 +110,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               lastPaymentDate: lastPayment ? lastPayment.toDate() : null
             });
           } else {
+             // This case might be hit if the document creation failed above.
+             // We log this but avoid setting state here as the error handler does it.
              console.error("Failed to get or create user data for", firebaseUser.uid);
              setAppUser(null);
           }
