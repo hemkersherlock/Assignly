@@ -5,7 +5,6 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 
 const client_email = process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
-// The private_key needs to have its newlines properly escaped when stored in .env
 const private_key = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 
@@ -45,7 +44,11 @@ export async function createOrderFolder(orderId: string): Promise<string> {
   }
 }
 
-export async function uploadFileToDrive(file: File, folderId: string): Promise<{id: string, webViewLink: string}> {
+// Accept a simple object with buffer/name/type instead of a complex File object
+export async function uploadFileToDrive(
+    file: { buffer: Buffer; name: string; type: string }, 
+    folderId: string
+): Promise<{id: string, webViewLink: string}> {
     if (!client_email || !private_key || !parentFolderId) {
       return disabledError();
     }
@@ -67,7 +70,7 @@ export async function uploadFileToDrive(file: File, folderId: string): Promise<{
 
     const media = {
         mimeType: file.type,
-        body: Readable.from(Buffer.from(await file.arrayBuffer())),
+        body: Readable.from(file.buffer), // Create a readable stream directly from the buffer
     };
 
     try {

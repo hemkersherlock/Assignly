@@ -193,26 +193,34 @@ export default function NewOrderPage() {
     try {
         toast({ title: "Submitting...", description: "Your order is being processed." });
 
-        const ordersCollectionRef = collection(firestore, 'users', appUser.id, 'orders');
-        const newOrderRef = doc(ordersCollectionRef); // Create a reference with a new ID
-        const orderId = newOrderRef.id;
+        // 1. Create a folder for the order in Google Drive (Server Action)
+        const driveFolderId = await createOrderFolder(appUser.id + "_" + Date.now());
 
-        // 1. Create a folder for the order in Google Drive
-        const driveFolderId = await createOrderFolder(orderId);
-
-        // 2. Upload files to that folder
+        // 2. Upload files to that folder (Server Action)
         const uploadedFiles = [];
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            const uploadedFile = await uploadFileToDrive(file, driveFolderId);
+            
+            // Convert file to buffer before sending to server action
+            const arrayBuffer = await file.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            
+            const uploadedFile = await uploadFileToDrive({
+                buffer,
+                name: file.name,
+                type: file.type,
+            }, driveFolderId);
+            
             uploadedFiles.push({ name: file.name, url: uploadedFile.webViewLink });
             setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
         }
-
+        
         // 3. Create a batch write to update Firestore atomically
         const batch = writeBatch(firestore);
-
+        
         // 3a. Create the new order document
+        const ordersCollectionRef = collection(firestore, 'users', appUser.id, 'orders');
+        const newOrderRef = doc(ordersCollectionRef);
         const newOrderData = {
             assignmentTitle,
             orderType,
