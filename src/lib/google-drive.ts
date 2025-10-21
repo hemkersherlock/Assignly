@@ -4,25 +4,25 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
-// Directly parse the JSON from the environment variable.
-// This ensures that any escaping issues are handled at the source.
-const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON 
-  ? JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
-  : null;
-
+const client_email = process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
+// The private_key needs to have its newlines properly escaped when stored in .env
+const private_key = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 
 const disabledError = () => {
-    throw new Error("Google Drive integration is not configured. Please set GOOGLE_APPLICATION_CREDENTIALS_JSON and GOOGLE_DRIVE_PARENT_FOLDER_ID in your environment variables.");
+    throw new Error("Google Drive integration is not configured. Please ensure GOOGLE_DRIVE_CLIENT_EMAIL, GOOGLE_DRIVE_PRIVATE_KEY, and GOOGLE_DRIVE_PARENT_FOLDER_ID are set in your environment variables.");
 };
 
 export async function createOrderFolder(orderId: string): Promise<string> {
-  if (!credentials || !parentFolderId) {
+  if (!client_email || !private_key || !parentFolderId) {
     return disabledError();
   }
 
   const auth = new google.auth.GoogleAuth({
-    credentials,
+    credentials: {
+        client_email,
+        private_key,
+    },
     scopes: ['https://www.googleapis.com/auth/drive.file'],
   });
 
@@ -46,12 +46,15 @@ export async function createOrderFolder(orderId: string): Promise<string> {
 }
 
 export async function uploadFileToDrive(file: File, folderId: string): Promise<{id: string, webViewLink: string}> {
-    if (!credentials || !parentFolderId) {
-        return disabledError();
+    if (!client_email || !private_key || !parentFolderId) {
+      return disabledError();
     }
     
     const auth = new google.auth.GoogleAuth({
-        credentials,
+        credentials: {
+            client_email,
+            private_key,
+        },
         scopes: ['https://www.googleapis.com/auth/drive.file'],
     });
 
