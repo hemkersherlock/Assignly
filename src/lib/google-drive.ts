@@ -37,13 +37,13 @@ function maybeBase64Decode(text: string): string {
  * @throws {Error} If required environment variables are not set or invalid.
  */
 function getCredentials(): ServiceAccountCreds {
-    const jsonEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON?.trim();
-    const emailEnv = process.env.GOOGLE_DRIVE_CLIENT_EMAIL?.trim();
-    const keyEnvRaw = process.env.GOOGLE_DRIVE_PRIVATE_KEY;
-
     if (!process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID) {
         throw new Error('Google Drive is not configured. Missing required environment variable: GOOGLE_DRIVE_PARENT_FOLDER_ID.');
     }
+
+    const jsonEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON?.trim();
+    const emailEnv = process.env.GOOGLE_DRIVE_CLIENT_EMAIL?.trim();
+    const keyEnvRaw = process.env.GOOGLE_DRIVE_PRIVATE_KEY;
 
     if (jsonEnv && jsonEnv !== '{}') {
         const text = maybeBase64Decode(jsonEnv);
@@ -118,7 +118,8 @@ async function verifyParentFolderAccess(drive: drive_v3.Drive, parentId: string,
  */
 function handleGoogleApiError(error: any, context: string): Error {
   const originalMessage = error.message || 'An unknown error occurred.';
-  const status = error.code || error?.response?.status;
+  const status = error?.code || error?.response?.status;
+
   console.error(`Google Drive API Error during ${context}:`, {
       status,
       message: originalMessage,
