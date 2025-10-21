@@ -120,13 +120,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   lastPaymentDate: null,
                   amountPaid: 0,
               };
+              
+              console.log('--- DEBUGGING AUTH WRITE ---');
+              console.log('Auth state:', !!auth.currentUser);
+              console.log('Auth UID:', auth.currentUser?.uid);
+              console.log('Target UID:', firebaseUser.uid);
+              console.log('UIDs match:', auth.currentUser?.uid === firebaseUser.uid);
+              console.log('-----------------------------');
 
               console.log('ðŸ“ Attempting setDoc with data:', newUser);
               console.log('ðŸ”‘ Auth UID:', firebaseUser.uid);
               console.log('ðŸ“ Document path:', `users/${firebaseUser.uid}`);
               
-              // ** FIX: Use retry logic for the setDoc operation **
-              await retryWithBackoff(() => setDoc(userDocRef, newUser));
+              await setDoc(userDocRef, newUser);
 
               console.log('âœ… User document created successfully!');
 

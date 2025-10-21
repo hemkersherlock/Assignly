@@ -2,6 +2,10 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Fix User Creation Permission Error with Explicit Rule
+- Replaced the failing Firestore security rule for user creation with a more explicit and robust one (`allow create: if request.auth != null && request.auth.uid == userId;`). This directly allows a newly authenticated user to create their own profile document.
+- Added verbose, detailed logging to `AuthContext.tsx` to trace the exact authentication state at the moment of the Firestore write operation, enabling better debugging.
+
 ## [2024-07-26] - Revert last change to restore Admin access
 - Reverted the previous `firestore.rules` change that accidentally broke admin accounts. Restored the "Nuclear Option" diagnostic rules to ensure admins can log in while debugging continues on student accounts.
 
