@@ -4,8 +4,6 @@
 import { google, drive_v3 } from 'googleapis';
 import { Readable } from 'stream';
 
-export const runtime = 'nodejs';
-
 /**
  * Interface for the serializable file data passed from the client.
  */
