@@ -2,10 +2,12 @@
 
 This file will be updated with a log of all changes made to the application code.
 
-## [2024-07-26] - Fix Server Action Serialization Error for File Uploads
-- Resolved a critical error (`Uint8Array objects are not supported`) that occurred when passing `File` objects to Next.js Server Actions.
-- The client-side code on the "New Order" page now converts `File` objects into a serializable plain object (with file data converted to a `number[]` array) before sending them to the server.
+## [2024-07-26] - Definitive Fix for Server Action Serialization
+- **This is the correct and final fix.**
+- Resolved the critical `Uint8Array objects are not supported` error by correctly implementing file serialization.
+- The client-side code on the "New Order" page now converts `File` objects into a serializable plain object (with file data converted to a `number[]` array) **before** sending them to the server action.
 - The `uploadFileToDrive` server action was updated to accept this serializable object and correctly reconstruct the file `Buffer` on the server before streaming it to Google Drive.
+- This resolves the long-standing issue where `File` objects were being passed directly to server actions, causing repeated failures.
 
 ## [2024-07-26] - Fix Critical Authentication Failure for New Users
 - Corrected Firestore security rules to allow a newly authenticated user to create their own user profile document. This resolves the "Missing or insufficient permissions" error that was blocking all new student sign-ups. The `create` rule for the `/users/{userId}` path was fixed to ensure the initial profile creation from the client is permitted.
