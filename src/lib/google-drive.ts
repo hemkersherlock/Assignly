@@ -44,9 +44,9 @@ export async function createOrderFolder(orderId: string): Promise<string> {
   }
 }
 
-// Accept a simple object with buffer/name/type instead of a complex File object
+// Accept a serializable object instead of a File or Buffer
 export async function uploadFileToDrive(
-    file: { buffer: Buffer; name: string; type: string }, 
+    fileData: { name: string; type: string; data: number[] }, 
     folderId: string
 ): Promise<{id: string, webViewLink: string}> {
     if (!client_email || !private_key || !parentFolderId) {
@@ -64,13 +64,16 @@ export async function uploadFileToDrive(
     const drive = google.drive({ version: 'v3', auth });
 
     const fileMetadata = {
-        name: file.name,
+        name: fileData.name,
         parents: [folderId],
     };
+    
+    // Reconstruct the Buffer from the number array
+    const buffer = Buffer.from(new Uint8Array(fileData.data));
 
     const media = {
-        mimeType: file.type,
-        body: Readable.from(file.buffer), // Create a readable stream directly from the buffer
+        mimeType: fileData.type,
+        body: Readable.from(buffer), // Create a readable stream from the buffer
     };
 
     try {
@@ -93,7 +96,7 @@ export async function uploadFileToDrive(
 
         return { id: fileId, webViewLink: uploadedFile.data.webViewLink! };
     } catch (error: any) {
-        console.error(`Error uploading file "${file.name}":`, error);
-        throw new Error(`Failed to upload ${file.name} to Google Drive.`);
+        console.error(`Error uploading file "${fileData.name}":`, error);
+        throw new Error(`Failed to upload ${fileData.name} to Google Drive.`);
     }
 }
