@@ -3,99 +3,122 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     * @principle Verified Identity: All authorization decisions must rely on `request.auth` as the source of truth.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user is the owner of the resource, based on the userId.
-     * @principle Ownership: Uses for paths like `/users/{userId}/...`.
-     * @param userId The user ID to compare against the authenticated user's UID.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user is an admin, by verifying the existence of a document in the `/roles_admin/{userId}` collection.
-     * @principle Roles: Used if the IR specifies global admin roles or similar database-wide needs.
-     */
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
-    /**
-     * @description Applies to user documents.
+     * @description Secure user profiles. Only the user or an admin can read. Only admins can write.
      * @path /users/{userId}
-     * @allow (get) If the user is signed in and is the owner of the document.
-     * @deny (get) If the user is not signed in or is not the owner of the document.
-     * @allow (create) If the user is signed in and the userId matches the authenticated user's UID.
-     * @deny (create) If the user is not signed in or the userId does not match the authenticated user's UID.
-     * @allow (update, delete) If the user is an admin.
-     * @deny (update, delete) If the user is not an admin.
-     * @principle Enforces document ownership for reads and admin-only access for writes.
+     * @allow (get) User with ID 'user123' can read their own profile.
+     *          request.auth.uid == 'user123'
+     * @allow (list) Admin user 'admin456' can list all users (if list was enabled) with existing document in /roles_admin/admin456.
+     * @allow (create) Admin user 'admin456' can create users with existing document in /roles_admin/admin456.
+     * @allow (update) Admin user 'admin456' can update users with existing document in /roles_admin/admin456.
+     * @allow (delete) Admin user 'admin456' can delete users with existing document in /roles_admin/admin456.
+     * @deny (get) User 'user456' cannot read profile of user 'user123'.
+     *          request.auth.uid == 'user456'
+     * @deny (create) Regular user 'user123' cannot create new user profiles.
+     *          request.auth.uid == 'user123'
+     * @deny (update) Regular user 'user123' cannot update other user profiles.
+     *          request.auth.uid == 'user123'
+     * @deny (delete) Regular user 'user123' cannot delete other user profiles.
+     *          request.auth.uid == 'user123'
+     * @principle Enforces user-level and admin-level access control for user profiles.
      */
     match /users/{userId} {
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      // Read Permissions
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list: if false; // Listing users is not permitted.
+
+      // Write Permissions
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     /**
-     * @description Applies to order documents within a user's subcollection.
+     * @description Secure orders for a specific user. Only the user or an admin can read and write.
      * @path /users/{userId}/orders/{orderId}
-     * @allow (get) If the user is signed in and is either the owner or an admin.
-     * @deny (get) If the user is not signed in and is not the owner or an admin.
-     * @allow (create) If the user is signed in, the userId matches the authenticated user's UID.
-     * @deny (create) If the user is not signed in, or the userId does not match the authenticated user's UID.
-     * @allow (update, delete) If the user is an admin.
-     * @deny (update, delete) If the user is not an admin.
-     * @principle Enforces user-ownership for read and create, and admin-only access for update and delete.
+     * @allow (get) User 'user123' can read their own order 'order456'.
+     *          request.auth.uid == 'user123'
+     * @allow (list) User 'user123' can list their own orders.
+     *          request.auth.uid == 'user123'
+     * @allow (create) User 'user123' can create an order with studentId matching their own ID.
+     *          request.auth.uid == 'user123' && request.resource.data.studentId == 'user123'
+     * @allow (update) User 'user123' can update their own order 'order456' with existing document.
+     *          request.auth.uid == 'user123'
+     * @allow (delete) User 'user123' can delete their own order 'order456' with existing document.
+     *          request.auth.uid == 'user123'
+     * @deny (get) User 'user456' cannot read order 'order456' that belongs to user 'user123'.
+     *          request.auth.uid == 'user456'
+     * @deny (create) User 'user123' cannot create an order with studentId not matching their own ID.
+     *          request.auth.uid == 'user123' && request.resource.data.studentId == 'userXXX'
+     * @deny (update) User 'user123' cannot update other user orders 'order456' with existing document.
+     *          request.auth.uid == 'userXXX'
+     * @deny (delete) User 'user123' cannot delete other user orders 'order456' with existing document.
+     *          request.auth.uid == 'userXXX'
+     * @principle Enforces user-level and admin-level access control for orders.
      */
     match /users/{userId}/orders/{orderId} {
+      // Read Permissions
       allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+
+      // Write Permissions
+      allow create: if isSignedIn() && (request.resource.data.studentId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow delete: if isSignedIn() && (isOwner(userId) || isAdmin());
     }
 
     /**
-     * @description Applies to analytics documents.
+     * @description Secure analytics data. Only admins can read and write.
      * @path /analytics/{analyticsId}
-     * @allow (read, write) If the user is an admin.
-     * @deny (read, write) If the user is not an admin.
-     * @principle Restricts analytics data access to admins only.
+     * @allow (get) Admin user 'admin456' can read analytics data with existing document in /roles_admin/admin456.
+     * @allow (list) Admin user 'admin456' can list analytics data with existing document in /roles_admin/admin456.
+     * @allow (create) Admin user 'admin456' can create analytics data with existing document in /roles_admin/admin456.
+     * @allow (update) Admin user 'admin456' can update analytics data with existing document in /roles_admin/admin456.
+     * @allow (delete) Admin user 'admin456' can delete analytics data with existing document in /roles_admin/admin456.
+     * @deny (get) Regular user 'user123' cannot read analytics data.
+     *          request.auth.uid == 'user123'
+     * @deny (create) Regular user 'user123' cannot create analytics data.
+     *          request.auth.uid == 'user123'
+     * @deny (update) Regular user 'user123' cannot update analytics data.
+     *          request.auth.uid == 'user123'
+     * @deny (delete) Regular user 'user123' cannot delete analytics data.
+     *          request.auth.uid == 'user123'
+     * @principle Restricts access to analytics data to administrators only.
      */
     match /analytics/{analyticsId} {
-      allow get, list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      // Read Permissions
+      allow get: if isSignedIn() && isAdmin();
+      allow list: if isSignedIn() && isAdmin();
+
+      // Write Permissions
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     /**
-     * @description Applies to admin role documents.
+     * @description Secure admin role. Existence of document grants admin privileges.
      * @path /roles_admin/{userId}
-     * @allow (get) If the user is signed in.
-     * @deny (get) If the user is not signed in.
-     * @allow (create) If the user is signed in and the userId matches the authenticated user's UID.
-     * @deny (create) If the user is not signed in, or the userId does not match the authenticated user's UID.
-     * @allow (update) If false (no updates allowed).
-     * @deny (update) Always.
-     * @allow (delete) If the userId matches the authenticated user's UID.
-     * @deny (delete) If the userId does not match the authenticated user's UID.
-     * @principle Allows self-creation and deletion of admin role assignments, but no updates.
      */
     match /roles_admin/{userId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if false;
-      allow delete: if isSignedIn() && isOwner(userId);
+      allow get: if isSignedIn() && isAdmin();
+      allow list: if isSignedIn() && isAdmin();
+
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isSignedIn() && isAdmin();
     }
+  }
+
+  // Helper Functions
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
+
+  function isAdmin() {
+    return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
   }
 }
