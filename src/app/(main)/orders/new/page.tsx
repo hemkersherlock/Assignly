@@ -205,15 +205,15 @@ export default function NewOrderPage() {
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             
-            // Convert file to serializable format before sending to server action
-            const serializableFile = {
+            // Convert File to serializable format
+            const fileData = {
               name: file.name,
               type: file.type,
-              data: Array.from(new Uint8Array(await file.arrayBuffer())),
+              data: Array.from(new Uint8Array(await file.arrayBuffer()))
             };
             
-            const uploadedFile = await uploadFileToDrive(serializableFile, driveFolderId);
-            
+            // Pass serializable data to server action
+            const uploadedFile = await uploadFileToDrive(fileData, driveFolderId);
             uploadedFiles.push({ name: file.name, url: uploadedFile.webViewLink });
             setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
         }
