@@ -50,9 +50,9 @@ function getCredentials(): ServiceAccountCreds {
         const parsed = tryParseJson(text);
         if (parsed) {
             const client_email = parsed.client_email as string | undefined;
-            const private_key = parsed.private_key as string | undefined;
-            if (client_email && private_key) {
-                return { client_email, private_key: private_key.replace(/\\n/g, '\n') };
+            const private_key_raw = parsed.private_key as string | undefined;
+            if (client_email && private_key_raw) {
+                return { client_email, private_key: private_key_raw.replace(/\\n/g, '\n') };
             }
         }
     }
@@ -158,9 +158,9 @@ function handleGoogleApiError(error: any, context: string): Error {
  */
 export async function createOrderFolder(orderId: string): Promise<string> {
   const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID!;
-  const { drive, saEmail } = getDriveClient();
   
   try {
+    const { drive, saEmail } = getDriveClient();
     // 1. Verify access to the parent folder before trying to create anything.
     await verifyParentFolderAccess(drive, parentFolderId, saEmail);
 
@@ -180,7 +180,6 @@ export async function createOrderFolder(orderId: string): Promise<string> {
     return folder.data.id!;
   } catch (error) {
     // If the error came from our verification step, it's already specific.
-    // Otherwise, wrap it with our generic handler.
     if (error instanceof Error && (error.message.includes('(404)') || error.message.includes('(403)'))) {
         throw error;
     }
