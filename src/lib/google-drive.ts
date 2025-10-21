@@ -46,7 +46,7 @@ export async function createOrderFolder(orderId: string): Promise<string> {
 
 // Accept a serializable object instead of a File or Buffer
 export async function uploadFileToDrive(
-    fileData: { name: string; type: string; data: number[] }, 
+    fileData: { name: string; type: string; size: number; data: number[] }, 
     folderId: string
 ): Promise<{id: string, webViewLink: string}> {
     if (!client_email || !private_key || !parentFolderId) {
