@@ -12,34 +12,53 @@ const disabledError = () => {
 };
 
 export async function createOrderFolder(orderId: string): Promise<string> {
+  console.log('🔍 Debug: Starting folder creation for order:', orderId);
+  console.log('🔍 Debug: Environment variables check:');
+  console.log('🔍 Debug: client_email exists:', !!client_email);
+  console.log('🔍 Debug: private_key exists:', !!private_key);
+  console.log('🔍 Debug: parentFolderId exists:', !!parentFolderId);
+  console.log('🔍 Debug: parentFolderId value:', parentFolderId);
+  
   if (!client_email || !private_key || !parentFolderId) {
+    console.error('❌ Debug: Missing environment variables');
     return disabledError();
   }
 
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-        client_email,
-        private_key,
-    },
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
-  });
-
-  const drive = google.drive({ version: 'v3', auth });
-  
-  const fileMetadata = {
-      name: `Order_${orderId}`,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: [parentFolderId]
-  };
   try {
-      const folder = await drive.files.create({
-          requestBody: fileMetadata,
-          fields: 'id'
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+          client_email,
+          private_key,
+      },
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
+    });
+
+    const drive = google.drive({ version: 'v3', auth });
+    
+    const fileMetadata = {
+        name: `Order_${orderId}`,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentFolderId]
+    };
+    
+    console.log('🔍 Debug: Creating folder with metadata:', fileMetadata);
+    
+    const folder = await drive.files.create({
+        requestBody: fileMetadata,
+        fields: 'id'
+    });
+    
+    console.log('✅ Debug: Folder created successfully with ID:', folder.data.id);
+    return folder.data.id!;
+  } catch (error: any) {
+      console.error("❌ Debug: Error creating order folder:", error);
+      console.error('❌ Debug: Error details:', {
+          message: error.message,
+          code: error.code,
+          status: error.status,
+          errors: error.errors
       });
-      return folder.data.id!;
-  } catch (error) {
-      console.error("Error creating order folder:", error);
-      throw new Error("Could not create a dedicated folder for this order in Google Drive.");
+      throw new Error(`A Google Drive API error occurred while creating folder for order ${orderId}. ${error.message}`);
   }
 }
 
