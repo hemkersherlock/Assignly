@@ -117,7 +117,6 @@ async function verifyParentFolderAccess(drive: drive_v3.Drive, parentId: string,
  * @returns {Error} A new Error with a user-friendly message.
  */
 function handleGoogleApiError(error: any, context: string): Error {
-  // Robustly get status code. In googleapis, it's often in `error.code`.
   const status = error?.code || error?.response?.status;
   const originalMessage = error.message || 'An unknown error occurred.';
 
@@ -180,7 +179,11 @@ export async function createOrderFolder(orderId: string): Promise<string> {
     
     return folder.data.id!;
   } catch (error) {
-    // Re-throw errors from verification or creation, which are now more specific.
+    // If the error came from our verification step, it's already specific.
+    // Otherwise, wrap it with our generic handler.
+    if (error instanceof Error && (error.message.includes('(404)') || error.message.includes('(403)'))) {
+        throw error;
+    }
     throw handleGoogleApiError(error, `creating folder for order ${orderId}`);
   }
 }
