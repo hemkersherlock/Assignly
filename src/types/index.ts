@@ -24,9 +24,9 @@ export interface Order {
   pageCount: number;
   status: "pending" | "in_progress" | "completed";
   completedFileUrl: string | null;
-  createdAt: Date;
-  startedAt: Date | null;
-  completedAt: Date | null;
+  createdAt: any;
+  startedAt: any | null;
+  completedAt: any | null;
   turnaroundTimeHours: number | null;
   notes: string | null;
   driveFolderId?: string;
@@ -57,5 +57,3 @@ export interface MonthlyAnalytics {
     activeStudents: number;
     revenue?: number; // Optional
 }
-
-    

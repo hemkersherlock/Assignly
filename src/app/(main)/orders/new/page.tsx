@@ -193,8 +193,12 @@ export default function NewOrderPage() {
     try {
         toast({ title: "Submitting...", description: "Your order is being processed." });
 
+        const ordersCollectionRef = collection(firestore, 'users', appUser.id, 'orders');
+        const newOrderRef = doc(ordersCollectionRef); // Create a reference with a new ID
+        const orderId = newOrderRef.id;
+
         // 1. Create a folder for the order in Google Drive (Server Action)
-        const driveFolderId = await createOrderFolder(appUser.id + "_" + Date.now());
+        const driveFolderId = await createOrderFolder(orderId);
 
         // 2. Upload files to that folder (Server Action)
         const uploadedFiles = [];
@@ -218,9 +222,8 @@ export default function NewOrderPage() {
         const batch = writeBatch(firestore);
         
         // 3a. Create the new order document
-        const ordersCollectionRef = collection(firestore, 'users', appUser.id, 'orders');
-        const newOrderRef = doc(ordersCollectionRef);
         const newOrderData = {
+            id: orderId,
             assignmentTitle,
             orderType,
             pageCount: totalPageCount,
