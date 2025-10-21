@@ -117,11 +117,12 @@ async function verifyParentFolderAccess(drive: drive_v3.Drive, parentId: string,
  * @returns {Error} A new Error with a user-friendly message.
  */
 function handleGoogleApiError(error: any, context: string): Error {
-  const originalMessage = error.message || 'An unknown error occurred.';
+  // Robustly get status code. In googleapis, it's often in `error.code`.
   const status = error?.code || error?.response?.status;
+  const originalMessage = error.message || 'An unknown error occurred.';
 
   console.error(`Google Drive API Error during ${context}:`, {
-      status,
+      status: status,
       message: originalMessage,
       errors: error.errors
   });
@@ -133,19 +134,20 @@ function handleGoogleApiError(error: any, context: string): Error {
   }
   if (status === 403) {
     return new Error(
-      'Permission denied. Please ensure the Google Drive API is enabled and the parent folder has been shared with the service account email as an "Editor".'
+      'Permission denied. Please ensure the Google Drive API is enabled in your GCP project and the parent folder has been shared with the service account email as an "Editor".'
     );
   }
   if (status === 404) {
     return new Error(
-      `Parent folder not found. Please verify that the GOOGLE_DRIVE_PARENT_FOLDER_ID is correct and the service account has access to it.`
+      `Resource not found (404). If creating a folder, verify that the GOOGLE_DRIVE_PARENT_FOLDER_ID is correct. If uploading a file, this could indicate a temporary issue.`
     );
   }
   if (status === 429) {
     return new Error('Google Drive API rate limit exceeded. Please try again later.');
   }
 
-  return new Error(`A Google Drive API error occurred while ${context}.`);
+  // Fallback to a generic but informative error.
+  return new Error(`A Google Drive API error occurred while ${context}. Status: ${status || 'unknown'}. Message: ${originalMessage}`);
 }
 
 
