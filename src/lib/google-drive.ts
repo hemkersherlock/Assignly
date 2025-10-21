@@ -42,14 +42,12 @@ function getCredentials(): GoogleDriveCredentials {
     );
   }
 
-  // Option A: Use the full JSON credentials string (preferred for hosting platforms)
   if (GOOGLE_APPLICATION_CREDENTIALS_JSON) {
     try {
       const parsedCreds = JSON.parse(GOOGLE_APPLICATION_CREDENTIALS_JSON);
       if (parsedCreds.client_email && parsedCreds.private_key) {
         return {
           client_email: parsedCreds.client_email,
-          // The private key from JSON doesn't need newline replacement
           private_key: parsedCreds.private_key,
         };
       }
@@ -60,16 +58,13 @@ function getCredentials(): GoogleDriveCredentials {
     }
   }
 
-  // Option B: Fallback to individual environment variables
   if (GOOGLE_DRIVE_CLIENT_EMAIL && GOOGLE_DRIVE_PRIVATE_KEY) {
     return {
       client_email: GOOGLE_DRIVE_CLIENT_EMAIL,
-      // Restore newlines that are escaped in environment variables
       private_key: GOOGLE_DRIVE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     };
   }
 
-  // If neither method works, throw a comprehensive error
   throw new Error(
     'Google Drive credentials are not configured. Please set either GOOGLE_APPLICATION_CREDENTIALS_JSON OR (GOOGLE_DRIVE_CLIENT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY).'
   );
@@ -77,37 +72,71 @@ function getCredentials(): GoogleDriveCredentials {
 
 /**
  * Creates and returns an authenticated Google Drive API client.
- * @returns {drive_v3.Drive} An authenticated Google Drive client instance.
+ * @returns {object} An object containing the drive client and the service account email.
  */
-function getDriveClient(): drive_v3.Drive {
+function getDriveClient(): { drive: drive_v3.Drive, client_email: string } {
   const credentials = getCredentials();
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ['https://www.googleapis.com/auth/drive.file'],
   });
-  return google.drive({ version: 'v3', auth });
+  return {
+    drive: google.drive({ version: 'v3', auth }),
+    client_email: credentials.client_email,
+  };
 }
+
+/**
+ * Verifies that the service account has access to the parent folder.
+ * @param drive - The authenticated Google Drive client.
+ * @param parentId - The ID of the parent folder.
+ * @param saEmail - The service account email address.
+ * @throws {Error} If the parent folder is not accessible.
+ */
+async function verifyParentFolderAccess(drive: drive_v3.Drive, parentId: string, saEmail: string) {
+    try {
+        await drive.files.get({
+            fileId: parentId,
+            fields: 'id',
+            supportsAllDrives: true,
+        });
+    } catch (err: any) {
+        const status = err?.code || err?.response?.status;
+        console.error('Parent folder access check failed:', { status, parentId, saEmail });
+        if (status === 404) {
+            throw new Error(`Parent folder not found (404). Please verify that GOOGLE_DRIVE_PARENT_FOLDER_ID is correct: ${parentId}`);
+        }
+        if (status === 403) {
+            throw new Error(`Permission denied (403). Please share the parent folder with the service account email "${saEmail}" as an "Editor".`);
+        }
+        throw new Error(`Failed to access parent folder. Ensure it exists and the service account has permissions.`);
+    }
+}
+
 
 /**
  * Handles API errors and maps them to user-friendly, actionable messages.
  * @param {any} error - The error object caught from the Google API call.
- * @param {string} context - A string describing the operation that failed (e.g., "creating folder").
+ * @param {string} context - A string describing the operation that failed.
  * @returns {Error} A new Error with a user-friendly message.
  */
 function handleGoogleApiError(error: any, context: string): Error {
   const originalMessage = error.message || 'An unknown error occurred.';
-  console.error(`Google Drive API Error during ${context}:`, originalMessage, error.errors);
-
   const status = error.code;
+  console.error(`Google Drive API Error during ${context}:`, {
+      status,
+      message: originalMessage,
+      errors: error.errors
+  });
 
   if (status === 401) {
     return new Error(
-      'Google Drive authentication failed (Unauthorized). Please check if the service account credentials are correct and valid.'
+      'Google Drive authentication failed (Unauthorized). Please check if the service account credentials in your environment variables are correct and valid.'
     );
   }
   if (status === 403) {
     return new Error(
-      'Permission denied. Please ensure the Google Drive API is enabled in your Google Cloud project and that the parent folder has been shared with the service account email.'
+      'Permission denied. Please ensure the Google Drive API is enabled and the parent folder has been shared with the service account email as an "Editor".'
     );
   }
   if (status === 404) {
@@ -119,7 +148,6 @@ function handleGoogleApiError(error: any, context: string): Error {
     return new Error('Google Drive API rate limit exceeded. Please try again later.');
   }
 
-  // For other errors, return a generic message
   return new Error(`A Google Drive API error occurred while ${context}.`);
 }
 
@@ -131,10 +159,14 @@ function handleGoogleApiError(error: any, context: string): Error {
  * @throws {Error} If folder creation fails.
  */
 export async function createOrderFolder(orderId: string): Promise<string> {
+  const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID!;
+  const { drive, client_email } = getDriveClient();
+  
   try {
-    const drive = getDriveClient();
-    const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID!;
+    // 1. Verify access to the parent folder before trying to create anything.
+    await verifyParentFolderAccess(drive, parentFolderId, client_email);
 
+    // 2. If access is verified, proceed to create the order folder.
     const fileMetadata = {
       name: `Order_${orderId}`,
       mimeType: 'application/vnd.google-apps.folder',
@@ -149,6 +181,7 @@ export async function createOrderFolder(orderId: string): Promise<string> {
     
     return folder.data.id!;
   } catch (error) {
+    // Re-throw errors from verification or creation, which are now more specific.
     throw handleGoogleApiError(error, `creating folder for order ${orderId}`);
   }
 }
@@ -165,9 +198,8 @@ export async function uploadFileToDrive(
   folderId: string
 ): Promise<{ id: string; webViewLink: string }> {
   let fileId: string | null = null;
+  const { drive } = getDriveClient();
   try {
-    const drive = getDriveClient();
-
     const fileMetadata = {
       name: fileData.name,
       parents: [folderId],
@@ -190,7 +222,6 @@ export async function uploadFileToDrive(
       throw new Error('File ID was not returned from Google Drive API.');
     }
 
-    // Best-effort attempt to make the file publicly readable.
     try {
       await drive.permissions.create({
         fileId: fileId,
@@ -207,13 +238,11 @@ export async function uploadFileToDrive(
       );
     }
     
-    // Prefer the direct webViewLink, but construct one as a fallback.
     const webViewLink = uploadedFile.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
 
     return { id: fileId, webViewLink };
 
   } catch (error) {
-    // Pass file name for better error context
     throw handleGoogleApiError(error, `uploading file "${fileData.name}"`);
   }
 }
