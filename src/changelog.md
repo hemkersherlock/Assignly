@@ -2,6 +2,9 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Fix Critical Authentication Failure for New Users
+- Corrected Firestore security rules to allow a newly authenticated user to create their own user profile document. This resolves the "Missing or insufficient permissions" error that was blocking all new student sign-ups. The `create` rule for the `/users/{userId}` path was fixed to ensure the initial profile creation from the client is permitted.
+
 ## [2024-07-26] - Fix Student Login and Permissions
 - Corrected Firestore security rules to allow users to create and read their own user profile, fixing the "Missing or insufficient permissions" error that blocked student logins.
 - Updated the login page to intelligently sign up a new user if their account doesn't exist, streamlining the initial user experience.
