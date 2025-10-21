@@ -4,7 +4,12 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
-const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+// Directly parse the JSON from the environment variable.
+// This ensures that any escaping issues are handled at the source.
+const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON 
+  ? JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
+  : null;
+
 const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 
 const disabledError = () => {
@@ -12,10 +17,9 @@ const disabledError = () => {
 };
 
 export async function createOrderFolder(orderId: string): Promise<string> {
-  if (!credentialsJson || credentialsJson === '{}' || !parentFolderId) {
+  if (!credentials || !parentFolderId) {
     return disabledError();
   }
-  const credentials = JSON.parse(credentialsJson);
 
   const auth = new google.auth.GoogleAuth({
     credentials,
@@ -42,11 +46,10 @@ export async function createOrderFolder(orderId: string): Promise<string> {
 }
 
 export async function uploadFileToDrive(file: File, folderId: string): Promise<{id: string, webViewLink: string}> {
-    if (!credentialsJson || credentialsJson === '{}' || !parentFolderId) {
+    if (!credentials || !parentFolderId) {
         return disabledError();
     }
-    const credentials = JSON.parse(credentialsJson);
-
+    
     const auth = new google.auth.GoogleAuth({
         credentials,
         scopes: ['https://www.googleapis.com/auth/drive.file'],
