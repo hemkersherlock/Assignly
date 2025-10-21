@@ -76,12 +76,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (firebaseUser) {
           console.log('âœ… User is authenticated:', firebaseUser.email);
+          // THIS IS THE KEY FIX: Force token refresh to ensure auth state is propagated.
+          await firebaseUser.getIdToken(true);
+          console.log('ðŸ”‘ Auth token refreshed.');
+          
           const userDocRef = doc(firestore, "users", firebaseUser.uid);
-          console.log('ðŸ“„ Attempting to read user doc at:', `users/${firebaseUser.uid}`);
           
           try {
             const userDoc = await getDoc(userDocRef);
-            console.log('ðŸ“¥ getDoc completed. Exists?', userDoc.exists());
 
             if (userDoc.exists()) {
               console.log('âœ… User document found');
@@ -120,20 +122,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   lastPaymentDate: null,
                   amountPaid: 0,
               };
-              
-              console.log('--- DEBUGGING AUTH WRITE ---');
-              console.log('Auth state:', !!auth.currentUser);
-              console.log('Auth UID:', auth.currentUser?.uid);
-              console.log('Target UID:', firebaseUser.uid);
-              console.log('UIDs match:', auth.currentUser?.uid === firebaseUser.uid);
-              console.log('-----------------------------');
 
-              console.log('ðŸ“ Attempting setDoc with data:', newUser);
-              console.log('ðŸ”‘ Auth UID:', firebaseUser.uid);
-              console.log('ðŸ“ Document path:', `users/${firebaseUser.uid}`);
+              // Use the retry logic to handle the race condition.
+              await retryWithBackoff(() => {
+                console.log('ðŸ“ Attempting setDoc inside retry block...');
+                return setDoc(userDocRef, newUser);
+              });
               
-              await setDoc(userDocRef, newUser);
-
               console.log('âœ… User document created successfully!');
 
               // Re-fetch to confirm

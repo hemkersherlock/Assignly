@@ -2,6 +2,11 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Definitive Auth Race Condition Fix
+- Implemented a definitive fix for the "Missing or insufficient permissions" error during new user creation.
+- Added `await firebaseUser.getIdToken(true)` in `AuthContext.tsx` to force the client to wait for the auth token to be fully propagated before attempting any Firestore operations.
+- Wrapped the user profile creation (`setDoc`) in a `retryWithBackoff` function to gracefully handle any remaining edge-case timing issues.
+
 ## [2024-07-26] - Fix User Creation Permission Error with Explicit Rule
 - Replaced the failing Firestore security rule for user creation with a more explicit and robust one (`allow create: if request.auth != null && request.auth.uid == userId;`). This directly allows a newly authenticated user to create their own profile document.
 - Added verbose, detailed logging to `AuthContext.tsx` to trace the exact authentication state at the moment of the Firestore write operation, enabling better debugging.
