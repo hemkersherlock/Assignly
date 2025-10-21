@@ -67,6 +67,7 @@ function getCredentials(): ServiceAccountCreds {
 
 /**
  * Creates and returns an authenticated Google Drive API client.
+ * This is instantiated for each request to avoid stale auth tokens.
  * @returns {object} An object containing the drive client and the service account email.
  */
 function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
@@ -161,10 +162,8 @@ export async function createOrderFolder(orderId: string): Promise<string> {
   
   try {
     const { drive, saEmail } = getDriveClient();
-    // 1. Verify access to the parent folder before trying to create anything.
     await verifyParentFolderAccess(drive, parentFolderId, saEmail);
 
-    // 2. If access is verified, proceed to create the order folder.
     const fileMetadata = {
       name: `Order_${orderId}`,
       mimeType: 'application/vnd.google-apps.folder',
