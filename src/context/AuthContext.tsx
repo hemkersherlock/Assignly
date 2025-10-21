@@ -5,7 +5,7 @@ import React, { createContext, useState, useContext, useEffect, ReactNode } from
 import { useRouter, usePathname } from 'next/navigation';
 import type { User as AppUser } from '@/types';
 import { useFirebase } from "@/firebase";
-import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp, FirestoreError } from "firebase/firestore";
 import { signOut, User as FirebaseUser, onAuthStateChanged } from "firebase/auth";
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -17,6 +17,38 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+/**
+ * Retries a Firestore operation with exponential backoff.
+ * This is useful for handling permission errors that occur due to auth token propagation delays.
+ * @param operation The async function to retry (e.g., () => setDoc(...))
+ * @param maxRetries The maximum number of retries.
+ * @param baseDelayMs The initial delay in milliseconds.
+ */
+const retryWithBackoff = async <T,>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 100
+): Promise<T> => {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await operation();
+    } catch (error) {
+      // Only retry on Firestore permission errors.
+      if (error instanceof FirestoreError && error.code === 'permission-denied' && attempt < maxRetries) {
+        attempt++;
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        console.warn(`AuthContext: Permission denied on attempt ${attempt}. Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        // For other errors or if max retries are exceeded, re-throw the error.
+        throw error;
+      }
+    }
+  }
+};
+
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { auth, firestore } = useFirebase();
@@ -92,8 +124,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               console.log('ðŸ“ Attempting setDoc with data:', newUser);
               console.log('ðŸ”‘ Auth UID:', firebaseUser.uid);
               console.log('ðŸ“ Document path:', `users/${firebaseUser.uid}`);
-
-              await setDoc(userDocRef, newUser);
+              
+              // ** FIX: Use retry logic for the setDoc operation **
+              await retryWithBackoff(() => setDoc(userDocRef, newUser));
 
               console.log('âœ… User document created successfully!');
 
@@ -115,6 +148,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   });
               } else {
                   console.error('âŒ CRITICAL: Document does not exist even after creation attempt.');
+                   setError("Failed to create user profile. Please try again.");
+                   await signOut(auth);
               }
             }
           } catch (err: any) {
@@ -122,7 +157,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               console.error('âŒ Error code:', err.code);
               console.error('âŒ Error message:', err.message);
               console.error('âŒ Full error:', JSON.stringify(err, null, 2));
-              setError(err.message);
+              setError(err.message || 'An unexpected error occurred during login.');
               // Aggressively sign out user if their profile is broken
               await signOut(auth);
           }
