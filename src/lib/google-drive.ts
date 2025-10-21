@@ -5,7 +5,7 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 
 const client_email = process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
-const private_key = process.env.GOOGLE_DRIVE_PRIVATE_KEY;
+const private_key = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 
 const disabledError = () => {
@@ -100,5 +100,3 @@ export async function uploadFileToDrive(
         throw new Error(`Failed to upload ${fileData.name} to Google Drive.`);
     }
 }
-
-    
