@@ -23,15 +23,14 @@ import { Download, Save } from "lucide-react";
 import { useAuthContext } from "@/context/AuthContext";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { collection, query, orderBy } from "firebase/firestore";
-import { useFirebase } from "@/firebase";
-import { useMemo } from "react";
+import { useFirebase, useMemoFirebase } from "@/firebase";
 import type { Order } from "@/types";
 
 export default function OrderHistoryPage() {
   const { user: appUser } = useAuthContext();
   const { firestore } = useFirebase();
 
-  const ordersQuery = useMemo(() => {
+  const ordersQuery = useMemoFirebase(() => {
     if (!appUser) return null;
     const coll = collection(firestore, "users", appUser.id, "orders");
     return query(coll, orderBy("createdAt", "desc"));
