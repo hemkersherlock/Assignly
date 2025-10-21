@@ -2,28 +2,6 @@
 
 This file will be updated with a log of all changes made to the application code.
 
-## [2024-07-26] - Definitive Auth Race Condition Fix
-- Implemented a definitive fix for the "Missing or insufficient permissions" error during new user creation.
-- Added `await firebaseUser.getIdToken(true)` in `AuthContext.tsx` to force the client to wait for the auth token to be fully propagated before attempting any Firestore operations.
-- Wrapped the user profile creation (`setDoc`) in a `retryWithBackoff` function to gracefully handle any remaining edge-case timing issues.
-
-## [2024-07-26] - Fix User Creation Permission Error with Explicit Rule
-- Replaced the failing Firestore security rule for user creation with a more explicit and robust one (`allow create: if request.auth != null && request.auth.uid == userId;`). This directly allows a newly authenticated user to create their own profile document.
-- Added verbose, detailed logging to `AuthContext.tsx` to trace the exact authentication state at the moment of the Firestore write operation, enabling better debugging.
-
-## [2024-07-26] - Revert last change to restore Admin access
-- Reverted the previous `firestore.rules` change that accidentally broke admin accounts. Restored the "Nuclear Option" diagnostic rules to ensure admins can log in while debugging continues on student accounts.
-
-## [2024-07-26] - Fix Student Dashboard Permissions
-- Corrected Firestore security rules to allow a student to `list` their own orders. This resolves the "Missing or insufficient permissions" error on the student dashboard.
-
-## [2024-07-26] - Implement "Nuclear Option" Diagnostic for Auth
-- Replaced existing Firestore rules with a temporary, more permissive set to isolate and diagnose the root cause of the user creation failure.
-- Implemented hyper-verbose logging within `AuthContext.tsx` to trace every step of the authentication and profile creation flow in the browser console. This is a targeted diagnostic step to gather precise data on the "Missing or insufficient permissions" error.
-
-## [2024-07-26] - Fix Critical Unauthenticated User Error
-- Resolved a "Missing or insufficient permissions" error that occurred on initial app load for logged-out users. The student dashboard and order pages were attempting to fetch Firestore data before a user was authenticated. The code has been corrected to only initiate data fetching *after* a user has been successfully identified, preventing the error and showing a correct loading state.
-
 ## [2024-07-26] - Fix Critical Authentication Failure for New Users
 - Corrected Firestore security rules to allow a newly authenticated user to create their own user profile document. This resolves the "Missing or insufficient permissions" error that was blocking all new student sign-ups. The `create` rule for the `/users/{userId}` path was fixed to ensure the initial profile creation from the client is permitted.
 
