@@ -22,7 +22,6 @@ function tryParseJson(text: string): any {
 
 function maybeBase64Decode(text: string): string {
   try {
-    // Heuristics: if it doesn't start with '{', try base64
     if (!text.trim().startsWith('{')) {
       return Buffer.from(text, 'base64').toString('utf8');
     }
@@ -32,7 +31,6 @@ function maybeBase64Decode(text: string): string {
 
 /**
  * Retrieves and validates Google Drive credentials from environment variables.
- * It supports a full JSON string, a base64 encoded JSON string, or individual email/key variables.
  * @returns {ServiceAccountCreds} The validated credentials.
  * @throws {Error} If required environment variables are not set or invalid.
  */
@@ -66,8 +64,7 @@ function getCredentials(): ServiceAccountCreds {
 }
 
 /**
- * Creates and returns an authenticated Google Drive API client.
- * This is instantiated for each request to avoid stale auth tokens.
+ * Creates and returns an authenticated Google Drive API client for each request.
  * @returns {object} An object containing the drive client and the service account email.
  */
 function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
@@ -146,7 +143,6 @@ function handleGoogleApiError(error: any, context: string): Error {
     return new Error('Google Drive API rate limit exceeded. Please try again later.');
   }
 
-  // Fallback to a generic but informative error.
   return new Error(`A Google Drive API error occurred while ${context}. Status: ${status || 'unknown'}. Message: ${originalMessage}`);
 }
 
