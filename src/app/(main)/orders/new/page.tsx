@@ -16,8 +16,6 @@ import * as pdfjs from 'pdfjs-dist';
 import { useAuthContext } from "@/context/AuthContext";
 import { useFirebase } from "@/firebase";
 import { addDoc, collection, doc, updateDoc, increment, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { v4 as uuidv4 } from "uuid";
 
 
 // Configure the worker for pdf.js
@@ -84,7 +82,7 @@ export default function NewOrderPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user: appUser } = useAuthContext();
-  const { firestore, storage } = useFirebase();
+  const { firestore } = useFirebase();
   
   const totalPageCount = useMemo(() => {
     return files.reduce((acc, file) => acc + (pageCounts[file.name] || 0), 0);
@@ -190,73 +188,15 @@ export default function NewOrderPage() {
     }
 
     setIsSubmitting(true);
-    const orderId = uuidv4();
-
-    try {
-        const uploadPromises = files.map(file => {
-            const filePath = `user_uploads/${appUser.id}/${orderId}/${file.name}`;
-            const storageRef = ref(storage, filePath);
-            const uploadTask = uploadBytesResumable(storageRef, file);
-
-            return new Promise<{name: string, url: string}>((resolve, reject) => {
-                uploadTask.on('state_changed',
-                    (snapshot) => {
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        setUploadProgress(prev => ({...prev, [file.name]: progress}));
-                    },
-                    (error) => {
-                        console.error(`Upload failed for ${file.name}:`, error);
-                        reject(error);
-                    },
-                    async () => {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        resolve({ name: file.name, url: downloadURL });
-                    }
-                );
-            });
-        });
-
-        const uploadedFiles = await Promise.all(uploadPromises);
-
-        const ordersCollectionRef = collection(firestore, `users/${appUser.id}/orders`);
-        await addDoc(ordersCollectionRef, {
-            studentId: appUser.id,
-            studentEmail: appUser.email,
-            assignmentTitle,
-            orderType,
-            originalFiles: uploadedFiles,
-            pageCount: totalPageCount,
-            status: "pending",
-            createdAt: serverTimestamp(),
-            startedAt: null,
-            completedAt: null,
-            turnaroundTimeHours: null,
-            notes: null,
-        });
-
-        const userDocRef = doc(firestore, `users/${appUser.id}`);
-        await updateDoc(userDocRef, {
-            pageQuota: increment(-totalPageCount),
-            totalOrdersPlaced: increment(1),
-            totalPagesUsed: increment(totalPageCount),
-        });
-
-        toast({
-            title: "Order Submitted!",
-            description: "Your files have been uploaded and your order is being processed.",
-        });
-        router.push('/dashboard');
-
-    } catch (error: any) {
-        console.error("Order submission failed:", error);
-        toast({
-            variant: "destructive",
-            title: "Submission Failed",
-            description: error.message || "An unexpected error occurred. Please try again."
-        });
-    } finally {
+    // TODO: Implement Google Drive Upload
+    toast({ title: "Submitting...", description: "Connecting to Google Drive is the next step."});
+    
+    // Simulate submission for now
+    setTimeout(() => {
         setIsSubmitting(false);
-    }
+        toast({ title: "Ready for Google Drive!", description: "The app is ready for the next step of Google Drive integration."});
+        router.push('/dashboard');
+    }, 2000);
   }
 
   const totalProgress = useMemo(() => {
@@ -401,5 +341,3 @@ export default function NewOrderPage() {
     </div>
   );
 }
-
-    
