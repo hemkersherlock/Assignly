@@ -68,15 +68,15 @@ export async function createOrderFolder(orderId: string): Promise<string> {
     }
 }
 
-export async function uploadFileToDrive(file: File, folderId: string): Promise<{id: string, webViewLink: string}> {
+export async function uploadFileToDrive(fileData: {name: string, type: string, size: number, data: number[]}, folderId: string): Promise<{id: string, webViewLink: string}> {
     const fileMetadata = {
-        name: file.name,
+        name: fileData.name,
         parents: [folderId],
     };
 
     const media = {
-        mimeType: file.type,
-        body: Readable.from(Buffer.from(await file.arrayBuffer())),
+        mimeType: fileData.type,
+        body: Readable.from(Buffer.from(new Uint8Array(fileData.data))),
     };
 
     try {
