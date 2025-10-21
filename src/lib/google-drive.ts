@@ -7,20 +7,17 @@ import { Readable } from 'stream';
 // Ensure the environment variable is loaded
 const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
 
+const disabledError = () => {
+    throw new Error("Google Drive integration is not configured. Please set GOOGLE_APPLICATION_CREDENTIALS_JSON in your environment variables.");
+};
+
+let createOrderFolder: (orderId: string) => Promise<string> = disabledError;
+let uploadFileToDrive: (file: File, folderId: string) => Promise<{ id: string; webViewLink: string; }> = disabledError;
+
+
 // Check if credentials are provided and not an empty object string
 if (!credentialsJson || credentialsJson === '{}') {
   console.warn("GOOGLE_APPLICATION_CREDENTIALS_JSON is not set. Google Drive features will be disabled.");
-  
-  // Mock the functions to prevent crashes
-  const disabledError = () => { 
-    throw new Error("Google Drive integration is not configured. Please set GOOGLE_APPLICATION_CREDENTIALS_JSON in your environment variables.");
-  };
-
-  module.exports = {
-    createOrderFolder: disabledError,
-    uploadFileToDrive: disabledError,
-  };
-
 } else {
   const credentials = JSON.parse(credentialsJson);
 
@@ -60,7 +57,7 @@ if (!credentialsJson || credentialsJson === '{}') {
   }
 
 
-  async function createOrderFolder(orderId: string): Promise<string> {
+  createOrderFolder = async (orderId: string): Promise<string> => {
       const rootFolderId = await findOrCreateRootFolder();
       const fileMetadata = {
           name: `Order_${orderId}`,
@@ -79,7 +76,7 @@ if (!credentialsJson || credentialsJson === '{}') {
       }
   }
 
-  async function uploadFileToDrive(file: File, folderId: string): Promise<{id: string, webViewLink: string}> {
+  uploadFileToDrive = async (file: File, folderId: string): Promise<{id: string, webViewLink: string}> => {
       const fileMetadata = {
           name: file.name,
           parents: [folderId],
@@ -114,9 +111,6 @@ if (!credentialsJson || credentialsJson === '{}') {
           throw new Error(`Failed to upload ${file.name} to Google Drive.`);
       }
   }
-
-  module.exports = {
-    createOrderFolder,
-    uploadFileToDrive,
-  };
 }
+
+export { createOrderFolder, uploadFileToDrive };
