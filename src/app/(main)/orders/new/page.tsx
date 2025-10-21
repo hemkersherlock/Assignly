@@ -268,20 +268,20 @@ export default function NewOrderPage() {
       // 2. Upload files to that folder
       const uploadedFiles = [];
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-
-        // Convert File to serializable format
-        const fileData = {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          data: Array.from(new Uint8Array(await file.arrayBuffer())),
-        };
-
-        // Pass serializable data to server action
-        const uploadedFile = await uploadFileToDrive(fileData, driveFolderId);
-        uploadedFiles.push({ name: file.name, url: uploadedFile.webViewLink });
-        setUploadProgress((prev) => ({ ...prev, [file.name]: 100 }));
+          const file = files[i];
+          
+          // Convert File to serializable format
+          const fileData = {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              data: Array.from(new Uint8Array(await file.arrayBuffer()))
+          };
+          
+          // Pass serializable data to server action
+          const uploadedFile = await uploadFileToDrive(fileData, driveFolderId);
+          uploadedFiles.push({ name: file.name, url: uploadedFile.webViewLink });
+          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
       }
 
       // 3. Batch write to Firestore
