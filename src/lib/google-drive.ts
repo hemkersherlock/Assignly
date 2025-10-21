@@ -1,3 +1,4 @@
+
 'use server';
 
 import { google } from 'googleapis';
@@ -67,7 +68,7 @@ export async function uploadFileToDrive(
         name: fileData.name,
         parents: [folderId],
     };
-    
+
     // Reconstruct the Buffer from the number array
     const media = {
         mimeType: fileData.type,
