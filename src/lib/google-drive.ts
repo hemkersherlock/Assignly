@@ -74,15 +74,23 @@ export async function uploadFileToDrive(
     };
 
     try {
+        console.log('🔍 Debug: Starting file upload for:', fileData.name);
+        console.log('🔍 Debug: File size:', fileData.size, 'bytes');
+        console.log('🔍 Debug: File type:', fileData.type);
+        console.log('🔍 Debug: Data array length:', fileData.data.length);
+        console.log('🔍 Debug: Target folder ID:', folderId);
+        
         const uploadedFile = await drive.files.create({
             requestBody: fileMetadata,
             media: media,
             fields: 'id, webViewLink',
         });
 
+        console.log('✅ Debug: File uploaded successfully, ID:', uploadedFile.data.id);
         const fileId = uploadedFile.data.id!;
 
         // Make the file publicly readable
+        console.log('🔍 Debug: Setting file permissions...');
         await drive.permissions.create({
             fileId: fileId,
             requestBody: {
@@ -91,9 +99,16 @@ export async function uploadFileToDrive(
             }
         });
 
+        console.log('✅ Debug: File permissions set successfully');
         return { id: fileId, webViewLink: uploadedFile.data.webViewLink! };
     } catch (error: any) {
-        console.error(`Error uploading file "${fileData.name}":`, error);
-        throw new Error(`Failed to upload ${fileData.name} to Google Drive.`);
+        console.error(`❌ Debug: Error uploading file "${fileData.name}":`, error);
+        console.error('❌ Debug: Error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.status,
+            errors: error.errors
+        });
+        throw new Error(`Failed to upload ${fileData.name} to Google Drive: ${error.message}`);
     }
 }
