@@ -29,6 +29,7 @@ export interface Order {
   completedAt: Date | null;
   turnaroundTimeHours: number | null;
   notes: string | null;
+  driveFolderId?: string;
 }
 
 export interface DailyAnalytics {

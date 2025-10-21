@@ -15,8 +15,8 @@ import { cn } from "@/lib/utils";
 import * as pdfjs from 'pdfjs-dist';
 import { useAuthContext } from "@/context/AuthContext";
 import { useFirebase } from "@/firebase";
-import { addDoc, collection, doc, updateDoc, increment, serverTimestamp } from "firebase/firestore";
-
+import { addDoc, collection, doc, updateDoc, increment, serverTimestamp, writeBatch } from "firebase/firestore";
+import { createOrderFolder, uploadFileToDrive } from "@/lib/google-drive";
 
 // Configure the worker for pdf.js
 if (typeof window !== 'undefined') {
@@ -25,7 +25,7 @@ if (typeof window !== 'undefined') {
 
 interface FileUploadProgress {
     fileName: string;
-    progress: number;
+    progress: number; // 0 to 100
     error?: string;
 }
 
@@ -169,7 +169,7 @@ export default function NewOrderPage() {
     event.stopPropagation();
   }, []);
 
-  const handleSubmit = async () => {
+ const handleSubmit = async () => {
     if (!appUser) {
         toast({ variant: "destructive", title: "You must be logged in to submit an order." });
         return;
@@ -188,22 +188,78 @@ export default function NewOrderPage() {
     }
 
     setIsSubmitting(true);
-    // TODO: Implement Google Drive Upload
-    toast({ title: "Submitting...", description: "Connecting to Google Drive is the next step."});
+    setUploadProgress({});
     
-    // Simulate submission for now
-    setTimeout(() => {
-        setIsSubmitting(false);
-        toast({ title: "Ready for Google Drive!", description: "The app is ready for the next step of Google Drive integration."});
-        router.push('/dashboard');
-    }, 2000);
-  }
+    try {
+        toast({ title: "Submitting...", description: "Your order is being processed." });
 
+        const ordersCollectionRef = collection(firestore, 'users', appUser.id, 'orders');
+        const newOrderRef = doc(ordersCollectionRef); // Create a reference with a new ID
+        const orderId = newOrderRef.id;
+
+        // 1. Create a folder for the order in Google Drive
+        const driveFolderId = await createOrderFolder(orderId);
+
+        // 2. Upload files to that folder
+        const uploadedFiles = [];
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const uploadedFile = await uploadFileToDrive(file, driveFolderId);
+            uploadedFiles.push({ name: file.name, url: uploadedFile.webViewLink });
+            setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+        }
+
+        // 3. Create a batch write to update Firestore atomically
+        const batch = writeBatch(firestore);
+
+        // 3a. Create the new order document
+        const newOrderData = {
+            assignmentTitle,
+            orderType,
+            pageCount: totalPageCount,
+            originalFiles: uploadedFiles,
+            driveFolderId: driveFolderId,
+            status: "pending",
+            studentId: appUser.id,
+            studentEmail: appUser.email,
+            createdAt: serverTimestamp(),
+            startedAt: null,
+            completedAt: null,
+            turnaroundTimeHours: null,
+            notes: null,
+        };
+        batch.set(newOrderRef, newOrderData);
+
+        // 3b. Update the user's quota and order count
+        const userRef = doc(firestore, 'users', appUser.id);
+        batch.update(userRef, {
+            pageQuota: increment(-totalPageCount),
+            totalOrdersPlaced: increment(1),
+            totalPagesUsed: increment(totalPageCount),
+        });
+
+        // 4. Commit the batch
+        await batch.commit();
+
+        toast({ title: "Order Submitted Successfully!", description: "We've received your files and will begin processing shortly." });
+        router.push('/dashboard');
+
+    } catch (error) {
+        console.error("Order submission failed: ", error);
+        toast({
+            variant: "destructive",
+            title: "Submission Failed",
+            description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
   const totalProgress = useMemo(() => {
-    if (Object.keys(uploadProgress).length === 0) return 0;
-    const total = Object.values(uploadProgress).reduce((acc, prog) => acc + prog, 0);
-    return total / Object.keys(uploadProgress).length;
-  }, [uploadProgress]);
+    if (files.length === 0) return 0;
+    const uploadedCount = Object.keys(uploadProgress).length;
+    return (uploadedCount / files.length) * 100;
+  }, [uploadProgress, files.length]);
 
   return (
     <div className="container mx-auto p-0 grid lg:grid-cols-3 gap-8 items-start">
