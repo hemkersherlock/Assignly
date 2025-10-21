@@ -15,8 +15,7 @@ import { Label } from "@/components/ui/label";
 import Logo from "@/components/shared/Logo";
 import { useFirebase } from "@/firebase";
 import { Loader2 } from "lucide-react";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, AuthError } from "firebase/auth";
-import { useRouter } from "next/navigation";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 
 
@@ -26,7 +25,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { auth } = useFirebase();
-  const router = useRouter();
   const { toast } = useToast();
 
   const handleLoginOrSignup = async (e: React.FormEvent) => {
@@ -37,28 +35,26 @@ export default function LoginPage() {
     try {
       // First, try to sign in
       await signInWithEmailAndPassword(auth, email, password);
-      // On successful login, the AuthContext's useEffect will handle redirection.
+      // On successful login, the AuthContext's onAuthStateChanged will handle redirection.
     } catch (err: any) {
         // If user does not exist, create a new account
         if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
             try {
                 toast({
                     title: 'Creating Account',
-                    description: 'First time signing in? We are setting up your account.',
+                    description: 'First time? We are setting up your account.',
                 });
                 await createUserWithEmailAndPassword(auth, email, password);
-                // AuthContext will handle the rest
+                // On successful signup, the AuthContext's onAuthStateChanged will handle everything else.
             } catch (createErr: any) {
-                setError(createErr.message || "Failed to create account.");
+                const message = createErr.message?.replace('Firebase: ','') || "Failed to create account.";
+                setError(message);
                 console.error("Signup Error:", createErr);
             }
         } else {
             // Handle other login errors
-            if (err.code === 'auth/wrong-password') {
-              setError("Invalid password. Please try again.");
-            } else {
-              setError("An unexpected error occurred during login. Please try again.");
-            }
+            const message = err.message?.replace('Firebase: ','') || "An unexpected error occurred.";
+            setError(message);
             console.error("Login Error:", err);
         }
     } finally {
