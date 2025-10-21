@@ -2,6 +2,10 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Implement "Nuclear Option" Diagnostic for Auth
+- Replaced existing Firestore rules with a temporary, more permissive set to isolate and diagnose the root cause of the user creation failure.
+- Implemented hyper-verbose logging within `AuthContext.tsx` to trace every step of the authentication and profile creation flow in the browser console. This is a targeted diagnostic step to gather precise data on the "Missing or insufficient permissions" error.
+
 ## [2024-07-26] - Fix Critical Unauthenticated User Error
 - Resolved a "Missing or insufficient permissions" error that occurred on initial app load for logged-out users. The student dashboard and order pages were attempting to fetch Firestore data before a user was authenticated. The code has been corrected to only initiate data fetching *after* a user has been successfully identified, preventing the error and showing a correct loading state.
 
@@ -20,7 +24,7 @@ This file will be updated with a log of all changes made to the application code
 ## [2024-07-26] - Fix Login Failure and User Creation
 - Implemented a definitive fix for the long-standing login issue. The `AuthContext` now robustly handles user profile creation. If a user is authenticated but their profile document does not exist in Firestore, it is now created automatically. This resolves the "User document not found" error and ensures a smooth login and redirection experience.
 
-## [2024-07-26] - Fix Login Redirection Logic
+## [202an-07-26] - Fix Login Redirection Logic
 - Refactored the authentication flow to centralize redirection logic within `AuthContext`. This resolves a race condition where the application would get stuck on the login page after a successful sign-in. The context now correctly waits for the user's Firestore document to be available before attempting to redirect.
 
 ## [2024-07-26] - Step 1: Connect App to Firebase
