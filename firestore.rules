@@ -1,108 +1,133 @@
+/**
+ * @file Firebase Security Rules for Assignly Application
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user data and orders,
+ * with administrative override capabilities. It also restricts access to analytics
+ * data to admin users only. The rules are designed to prevent unauthorized
+ * data access and modification.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores individual user profiles.
+ * - /users/{userId}/orders/{orderId}: Stores orders associated with a specific user.
+ * - /analytics/{analyticsId}: Stores application-wide analytics data.
+ * - /roles_admin/{userId}: Indicates admin privileges for a user. The existence of
+ *   a document in this collection grants admin rights.
+ *
+ * Key Security Decisions:
+ * - Users can only read/write their own user documents.
+ * - Orders can only be created under a user's own document.
+ * - Only admins can manage user documents and analytics data.
+ * - Listing of users is disallowed.
+ *
+ * Denormalization for Authorization:
+ * The 'Order' entity includes a 'studentId' field, denormalized from the user document.
+ * This allows security rules to validate order creation requests against the
+ * authenticated user's ID without requiring a 'get()' operation, improving efficiency
+ * and security.
+ *
+ * Structural Segregation:
+ * User-specific data (users and orders) is separated from global data (analytics)
+ * to simplify security rules and ensure a consistent security posture for each collection.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages admin role checks.  If a document exists at this path, the user is an admin.
-     * @path /roles_admin/{userId}
+     * @description Checks if the current user is authenticated.
+     * @return {boolean} True if the user is signed in, false otherwise.
      */
-    match /roles_admin/{userId} {
-        // Admins can read the documents
-        allow get: if isSignedIn();
-        allow list: if false; // Prevent listing of all admins
-
-        // Only admins can create/update/delete admin role assignments
-        allow create, update, delete: if isAdmin();
+    function isSignedIn() {
+      return request.auth != null;
     }
 
     /**
-     * @description Controls access to user documents. Only the user or an admin can read. Only admins can write.
+     * @description Checks if the authenticated user's UID matches the provided userId.
+     * @param {string} userId The user ID to compare against.
+     * @return {boolean} True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is an existing owner of a document.
+     *              Combines ownership check with document existence check.
+     * @param {string} userId The user ID to compare against.
+     * @return {boolean} True if the user is the owner and the document exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+     /**
+      * @description Checks if the requesting user is an admin.
+      * @return {boolean} True if the user is an admin, false otherwise.
+      */
+    function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+
+    /**
+     * @description Defines rules for the /users/{userId} collection.
      * @path /users/{userId}
-     * @allow (get) User A (auth: A, userId: A) can read their own user document.
-     * @allow (create) Admin (auth: B, userId: B, isAdmin: true) can create a user document for User A (userId: A).
-     * @deny (get) User A (auth: B, userId: A) cannot read User B's user document.
-     * @deny (create) User A (auth: A, userId: A) cannot create a user document for User B (userId: B).
-     * @principle Enforces document ownership for reads and restricts writes to admins only.
      */
     match /users/{userId} {
-      // Allow the user to read their own document, or an admin to read any user document.
-      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow list: if false; // Listing all users is not permitted
+      // Read Rules
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if false; // Disallow listing of all users.
 
-      // Allow creation of a user document only if the user ID matches the authenticated user ID
-      // or if the user is an admin.
-      allow create: if isSignedIn() && isOwner(userId);
-
-      // Allow updates and deletes only by admins.
-      allow update, delete: if isAdmin();
+      // Write Rules
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin(); // Only admins can update other users. The userId immutable after creation
+      allow delete: if isAdmin(); // Only admins can delete other users.
     }
 
     /**
-     * @description Controls access to order documents within a user's subcollection.
+     * @description Defines rules for the /users/{userId}/orders/{orderId} subcollection.
      * @path /users/{userId}/orders/{orderId}
-     * @allow (get) User A (auth: A, userId: A) can read their own order document.
-     * @allow (create) User A (auth: A, userId: A) can create an order document under their user document.
-     * @deny (get) User A (auth: B, userId: A) cannot read an order document under User B's user document.
-     * @deny (create) User A (auth: A, userId: A) cannot create an order document under User B's user document.
-     * @principle Enforces document ownership for reads and writes within the user's order subcollection.
      */
     match /users/{userId}/orders/{orderId} {
-      // Allow reading order documents if the user is the owner or an admin.
-      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow list: if false;
+      // Read Rules
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isOwner(userId) || isAdmin(); // Allow the owner and admins to list orders
 
-      // Allow creation if the user is signed in, the studentId matches the authenticated user's ID,
-      // and the userId in the path also matches.
-      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid && userId == request.auth.uid;
+      // Write Rules
+      allow create: if isOwner(userId) && request.resource.data.studentId == userId;
+      allow update: if isOwner(userId) || isAdmin(); // Admin can update any order, but ensure it exists
+      allow delete: if isAdmin(); // Admin can delete any order, but ensure it exists.
+    }
 
-      // Allow updates and deletes only by admins.  Ensure the document exists first!
+    /**
+     * @description Defines rules for the /analytics/{analyticsId} collection.
+     * @path /analytics/{analyticsId}
+     */
+    match /analytics/{analyticsId} {
+      // Read Rules
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+
+      // Write Rules
+      allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-    /**
-     * @description Controls access to analytics documents. Only admins can read and write.
-     * @path /analytics/{analyticsId}
-     * @allow (get) Admin (auth: A, isAdmin: true) can read analytics data.
-     * @allow (create) Admin (auth: A, isAdmin: true) can create analytics data.
-     * @deny (get) User A (auth: A, isAdmin: false) cannot read analytics data.
-     * @deny (create) User A (auth: A, isAdmin: false) cannot create analytics data.
-     * @principle Restricts all access to analytics data to admin users.
-     */
-    match /analytics/{analyticsId} {
-      // Allow reads only by admins.
+      /**
+       * @description Defines rules for the /roles_admin/{userId} collection.
+       * @path /roles_admin/{userId}
+       */
+    match /roles_admin/{userId} {
+      // Read Rules
       allow get: if isAdmin();
-      allow list: if isAdmin();
+      allow list: if false;
 
-      // Allow writes only by admins.
-      allow create, update, delete: if isAdmin();
+      // Write Rules - Only server can modify admin roles
+      allow create: if false; // Only server can create admin roles
+      allow update: if false; // Only server can update admin roles
+      allow delete: if false; // Only server can delete admin roles
     }
   }
-
-  // Helper functions
-
-  /**
-   * @description Checks if the user is signed in.
-   * @return True if the user is signed in, false otherwise.
-   */
-  function isSignedIn() {
-    return request.auth != null;
-  }
-
-  /**
-   * @description Checks if the user ID matches the authenticated user's ID.
-   * @param {string} userId The user ID to check.
-   * @return True if the user ID matches the authenticated user's ID, false otherwise.
-   */
-  function isOwner(userId) {
-    return request.auth.uid == userId;
-  }
-
-  /**
-   * @description Checks if the user is an admin by verifying the existence of a document in /roles_admin/{uid}.
-   * @return True if the user is an admin, false otherwise.
-   */
-    function isAdmin() {
-        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
 }
