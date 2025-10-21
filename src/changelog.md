@@ -2,6 +2,9 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Fix Critical Unauthenticated User Error
+- Resolved a "Missing or insufficient permissions" error that occurred on initial app load for logged-out users. The student dashboard and order pages were attempting to fetch Firestore data before a user was authenticated. The code has been corrected to only initiate data fetching *after* a user has been successfully identified, preventing the error and showing a correct loading state.
+
 ## [2024-07-26] - Fix Critical Authentication Failure for New Users
 - Corrected Firestore security rules to allow a newly authenticated user to create their own user profile document. This resolves the "Missing or insufficient permissions" error that was blocking all new student sign-ups. The `create` rule for the `/users/{userId}` path was fixed to ensure the initial profile creation from the client is permitted.
 

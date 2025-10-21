@@ -22,18 +22,22 @@ import type { Order } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function StudentDashboard() {
-  const { user: appUser } = useAuthContext();
+  const { user: appUser, loading: authLoading } = useAuthContext();
   const { firestore } = useFirebase();
 
   const ordersQuery = useMemoFirebase(() => {
-    if (!appUser) return null;
+    // Only create the query if the user is logged in
+    if (!appUser?.id) return null;
     const coll = collection(firestore, "users", appUser.id, "orders");
     return query(coll, orderBy("createdAt", "desc"), limit(3));
-  }, [firestore, appUser]);
+  }, [firestore, appUser?.id]);
 
-  const { data: recentOrders, isLoading } = useCollection<Order>(ordersQuery);
+  // Pass the (potentially null) query to the hook
+  const { data: recentOrders, isLoading: ordersLoading } = useCollection<Order>(ordersQuery);
 
-  if (!appUser) {
+  const isLoading = authLoading || (appUser && ordersLoading);
+
+  if (isLoading || !appUser) {
     return (
         <div className="container mx-auto p-0">
             <div className="grid gap-8">
@@ -58,9 +62,9 @@ export default function StudentDashboard() {
                     </Button>
                 </div>
                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Skeleton className="h-48 w-full" />
-                    <Skeleton className="h-48 w-full" />
-                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-48 w-full rounded-lg" />
+                    <Skeleton className="h-48 w-full rounded-lg" />
+                    <Skeleton className="h-48 w-full rounded-lg" />
                 </div>
             </div>
         </div>
@@ -95,14 +99,14 @@ export default function StudentDashboard() {
             </Button>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {isLoading && (
+            {ordersLoading && (
                  <>
                     <Skeleton className="h-48 w-full rounded-lg" />
                     <Skeleton className="h-48 w-full rounded-lg" />
                     <Skeleton className="h-48 w-full rounded-lg" />
                  </>
             )}
-            {!isLoading && recentOrders?.map(order => (
+            {!ordersLoading && recentOrders?.map(order => (
               <Card key={order.id} className="shadow-subtle">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-base font-medium truncate flex-1 mr-4">{order.assignmentTitle}</CardTitle>
@@ -121,7 +125,7 @@ export default function StudentDashboard() {
                 </CardFooter>
               </Card>
             ))}
-             {!isLoading && (!recentOrders || recentOrders.length === 0) && (
+             {!ordersLoading && (!recentOrders || recentOrders.length === 0) && (
                 <div className="col-span-full text-center py-10">
                     <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
                     <p className="mt-4 text-muted-foreground">You haven't placed any orders yet.</p>

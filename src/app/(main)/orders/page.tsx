@@ -31,10 +31,10 @@ export default function OrderHistoryPage() {
   const { firestore } = useFirebase();
 
   const ordersQuery = useMemoFirebase(() => {
-    if (!appUser) return null;
+    if (!appUser?.id) return null;
     const coll = collection(firestore, "users", appUser.id, "orders");
     return query(coll, orderBy("createdAt", "desc"));
-  }, [firestore, appUser]);
+  }, [firestore, appUser?.id]);
 
   const { data: orders, isLoading } = useCollection<Order>(ordersQuery);
 

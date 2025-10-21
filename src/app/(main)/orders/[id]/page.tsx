@@ -61,9 +61,9 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
   const { firestore } = useFirebase();
 
   const orderRef = useMemoFirebase(() => {
-    if (!appUser) return null;
+    if (!appUser?.id) return null;
     return doc(firestore, "users", appUser.id, "orders", params.id);
-  }, [firestore, appUser, params.id]);
+  }, [firestore, appUser?.id, params.id]);
 
   const { data: order, isLoading } = useDoc<Order>(orderRef);
 
@@ -71,8 +71,12 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
     return <StudentOrderDetailSkeleton />;
   }
 
-  if (!order) {
+  if (!order && !isLoading) {
     notFound();
+  }
+  
+  if (!order) {
+      return <StudentOrderDetailSkeleton />;
   }
 
   return (
