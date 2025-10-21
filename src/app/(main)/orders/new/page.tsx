@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
@@ -449,7 +450,68 @@ export default function NewOrderPage() {
           </CardContent>
         </Card>
       </div>
-      {/* Additional UI here, e.g. billing summary card */}
+
+      <div className="lg:col-span-1 space-y-6 sticky top-24">
+        <Card className="shadow-subtle">
+          <CardHeader>
+            <CardTitle>Billing Summary</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">Estimated Page Count</span>
+              <span className="font-semibold">{totalPageCount} pages</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">Your Current Quota</span>
+              <span className="font-semibold">{currentUserQuota} pages</span>
+            </div>
+            <div className="space-y-2">
+              <Progress
+                value={
+                  hasSufficientQuota
+                    ? (totalPageCount / (currentUserQuota || 1)) * 100
+                    : 100
+                }
+                className={
+                  !hasSufficientQuota
+                    ? "bg-destructive/20 [&>*]:bg-destructive"
+                    : ""
+                }
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Used: {totalPageCount}</span>
+                <span>Remaining: {remainingQuota < 0 ? 0 : remainingQuota}</span>
+              </div>
+            </div>
+            {!hasSufficientQuota && (
+              <div className="flex items-start gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-destructive">
+                <Info className="h-5 w-5 shrink-0 mt-0.5" />
+                <p className="text-sm">
+                  You've exceeded your quota. Please remove files or upgrade your plan.
+                </p>
+              </div>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handleSubmit}
+              disabled={
+                !hasSufficientQuota ||
+                files.length === 0 ||
+                !assignmentTitle.trim() ||
+                isSubmitting
+              }
+            >
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmitting
+                ? "Submitting..."
+                : `Submit Order (${totalPageCount} pages)`}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   );
 }
