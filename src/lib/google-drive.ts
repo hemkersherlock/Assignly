@@ -4,8 +4,8 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 
 const client_email = process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
-// The private key needs to have its newlines restored.
-const private_key = process.env.GOOGLE_DRIVE_PRIVATE_KEY;
+// The private key from environment variables often has its newlines escaped. We must restore them.
+const private_key = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 
 const disabledError = () => {
