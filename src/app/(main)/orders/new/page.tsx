@@ -270,16 +270,17 @@ export default function NewOrderPage() {
       for (let i = 0; i < files.length; i++) {
           const file = files[i];
           
-          // Convert File to serializable format
-          const fileData = {
+          // **FIX**: Convert File to a serializable plain object before sending to the server action.
+          const serializableFile = {
               name: file.name,
               type: file.type,
               size: file.size,
-              data: Array.from(new Uint8Array(await file.arrayBuffer()))
+              // Convert ArrayBuffer to a plain number array for serialization.
+              data: Array.from(new Uint8Array(await file.arrayBuffer())) 
           };
           
-          // Pass serializable data to server action
-          const uploadedFile = await uploadFileToDrive(fileData, driveFolderId);
+          // Pass the serializable data, not the raw File object.
+          const uploadedFile = await uploadFileToDrive(serializableFile, driveFolderId);
           uploadedFiles.push({ name: file.name, url: uploadedFile.webViewLink });
           setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
       }

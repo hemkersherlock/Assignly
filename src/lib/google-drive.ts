@@ -203,6 +203,7 @@ export async function uploadFileToDrive(
 
     const media = {
       mimeType: fileData.type,
+      // **FIX**: Reconstruct the file Buffer from the serialized number array.
       body: Readable.from(Buffer.from(new Uint8Array(fileData.data))),
     };
 
