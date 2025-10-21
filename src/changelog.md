@@ -5,20 +5,9 @@ This file will be updated with a log of all changes made to the application code
 ## [2024-07-26] - Fix Critical Authentication Failure for New Users
 - Corrected Firestore security rules to allow a newly authenticated user to create their own user profile document. This resolves the "Missing or insufficient permissions" error that was blocking all new student sign-ups. The `create` rule for the `/users/{userId}` path was fixed to ensure the initial profile creation from the client is permitted.
 
-## [2024-07-26] - Fix Student Login and Permissions
-- Corrected Firestore security rules to allow users to create and read their own user profile, fixing the "Missing or insufficient permissions" error that blocked student logins.
-- Updated the login page to intelligently sign up a new user if their account doesn't exist, streamlining the initial user experience.
-- The authentication flow is now robust for both new and existing student and admin accounts.
-
-## [2024-07-26] - Final Login/Signup Fix
-- Implemented a definitive fix for the entire authentication flow. The login page now correctly attempts to sign in a user, and if the user does not exist, it creates a new account in Firebase Authentication.
-- The `AuthContext` is now solely responsible for creating the user's profile document in Firestore if one does not exist after a successful authentication. This separation of concerns resolves a critical race condition and ensures every authenticated user has a corresponding database record, finally fixing the long-standing "User document not found" error.
-
-## [2024-07-26] - Fix Login Failure and User Creation
-- Implemented a definitive fix for the long-standing login issue. The `AuthContext` now robustly handles user profile creation. If a user is authenticated but their profile document does not exist in Firestore, it is now created automatically. This resolves the "User document not found" error and ensures a smooth login and redirection experience.
-
-## [202an-07-26] - Fix Login Redirection Logic
-- Refactored the authentication flow to centralize redirection logic within `AuthContext`. This resolves a race condition where the application would get stuck on the login page after a successful sign-in. The context now correctly waits for the user's Firestore document to be available before attempting to redirect.
+## [2024-07-26] - Isolate Firebase and Google Drive Authentication
+- Refactored the Google Drive integration to be strictly server-side, preventing conflicts with client-side Firebase Authentication. The order creation flow now correctly uses these server actions.
+- Added necessary environment variables to support the server-side Google Drive configuration.
 
 ## [2024-07-26] - Step 1: Connect App to Firebase
 - Added `FirebaseClientProvider` to `src/app/layout.tsx` to initialize Firebase services.

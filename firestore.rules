@@ -1,113 +1,133 @@
 /**
- * @description This ruleset enforces a strict user-ownership model for user data and orders,
- *              with admin override capabilities. Analytics data is restricted to admins only.
- * @dataStructure
- *  - /users/{userId}: Stores user profiles. Only the user or an admin can read. Only admins can update or delete.
- *  - /users/{userId}/orders/{orderId}: Stores orders for each user. Only the user can create orders for themselves.
- *  - /analytics/{analyticsId}: Stores global analytics data. Only admins can read or write.
- *  - /roles_admin/{userId}: Indicates if a user is an admin. Existence of this document grants admin privileges.
- * @keySecurityDecisions
- *  - Users can only read their own profile data, unless an admin.
- *  - Only admins can create, update, or delete user profiles.
- *  - Users can only create orders under their own user ID.
- *  - Listing user documents is disallowed for security.
- *  - Analytics data is completely restricted to admins.
- * @denormalizationForAuthorization
- *  - Orders include a denormalized 'studentId' field, allowing security rules to validate order creation requests
- *    against the authenticated user's ID without additional 'get()' operations.
- * @structuralSegregation
- *  - User-specific data (users and orders) is structurally segregated from global data (analytics).
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for users and their orders,
+ *              while restricting analytics data to admin users only.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profiles. Accessible only by the user themselves or an admin.
+ * - /users/{userId}/orders/{orderId}: Stores orders for a specific user. Accessible only by the user who owns the order.
+ * - /analytics/{analyticsId}: Stores application analytics. Accessible only by admins.
+ * - /roles_admin/{userId}: Indicates admin privileges. The existence of a document grants admin access.
+ *
+ * Key Security Decisions:
+ * - Users can only read/write their own profile data.
+ * - Orders can only be created under a user by that user, and only they can modify them.
+ * - Listing users is disallowed to prevent information disclosure.
+ * - Analytics data is strictly admin-only.
+ * - Relational integrity is enforced for user-owned data (e.g., order studentId must match the userId in the path).
+ *
+ * Denormalization for Authorization:
+ * - Orders contain a `studentId` field to enable authorization checks without needing to `get()` the user document.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile documents.
+     * @description Checks if the current user is signed in.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the current user is the owner of the resource, based on the provided userId.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the current user is the owner of the existing resource.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Checks if the current user is an admin.
+     */
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * @description Rule for the /users/{userId} collection.
      * @path /users/{userId}
-     * @allow (get) User 'user123' can read their own profile.
-     * @allow (create) User 'user123' can create their own profile when signing up.
-     * @allow (update) Admin can update user 'user123' profile.
-     * @allow (delete) Admin can delete user 'user123' profile.
-     * @deny (get) User 'user456' cannot read user 'user123' profile.
-     * @deny (create) User 'user456' cannot create user 'user123' profile.
-     * @principle Enforces document ownership and admin override for writes.
+     * @allow (get) Signed-in user reading their own profile.
+     * @deny (get) Signed-in user reading another user's profile.
+     * @allow (create) Signed-in user creating their own profile (self-registration).
+     * @deny (create) Signed-in user creating a profile for another user.
+     * @allow (update) Admin updating any user's profile.
+     * @deny (update) Non-admin user attempting to update another user's profile.
+     * @deny (delete) User attempting to delete their profile directly (deletion should be managed).
+     * @principle Enforces user-ownership for reads and self-creation, admin-only writes.
      */
     match /users/{userId} {
-      allow get: if isSignedIn() && request.auth.uid == userId;
-      allow list: if false;
-
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if false; // Disallow listing users for privacy.
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
       allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to orders for a specific user.
+     * @description Rule for the /users/{userId}/orders/{orderId} collection.
      * @path /users/{userId}/orders/{orderId}
-     * @allow (get) User 'user123' can read order 'order456' if they own it.
-     * @allow (create) User 'user123' can create a new order under their user ID.
-     * @deny (get) User 'user456' cannot read order 'order456' under user 'user123'.
-     * @deny (create) User 'user123' cannot create order 'order456' under user 'user456'
-     * @principle Enforces document ownership and validates creator ID on creation.
+     * @allow (create) Signed-in user creating an order for themselves.
+     * @deny (create) Signed-in user creating an order for another user.
+     * @allow (get) Signed-in user reading their own order.
+     * @deny (get) Signed-in user reading another user's order.
+     * @allow (update) Signed-in user updating their own order.
+     * @deny (update) Signed-in user updating another user's order.
+     * @allow (delete) Signed-in user deleting their own order.
+     * @deny (delete) Signed-in user deleting another user's order.
+     * @principle Enforces user-ownership for all operations.
      */
     match /users/{userId}/orders/{orderId} {
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if isSignedIn() && isOwner(userId);
-
-      allow create: if isSignedIn() && request.auth.uid == userId && request.resource.data.studentId == userId;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.studentId == request.auth.uid;
+      allow update: if isExistingOwner(userId) && resource.data.studentId == request.auth.uid;
+      allow delete: if isExistingOwner(userId) && resource.data.studentId == request.auth.uid;
     }
 
     /**
-     * @description Controls access to analytics data.
+     * @description Rule for the /analytics/{analyticsId} collection.
      * @path /analytics/{analyticsId}
-     * @allow (get) Admin can read analytics data.
-     * @allow (create) Admin can create analytics data.
-     * @allow (update) Admin can update analytics data.
-     * @allow (delete) Admin can delete analytics data.
-     * @deny (get) User cannot read analytics data.
-     * @deny (create) User cannot create analytics data.
+     * @allow (get) Admin user reading analytics data.
+     * @deny (get) Non-admin user reading analytics data.
+     * @allow (create) Admin user creating analytics data.
+     * @deny (create) Non-admin user creating analytics data.
+     * @allow (update) Admin user updating analytics data.
+     * @deny (update) Non-admin user updating analytics data.
+     * @allow (delete) Admin user deleting analytics data.
+     * @deny (delete) Non-admin user deleting analytics data.
      * @principle Restricts all access to admins only.
      */
     match /analytics/{analyticsId} {
       allow get: if isAdmin();
       allow list: if isAdmin();
-
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
      /**
-      * @description Controls access to admin role documents.
+      * @description Rule for the /roles_admin/{userId} collection.
       * @path /roles_admin/{userId}
-      * @allow get: if isAdmin();
-      * @allow create: if false;
-      * @allow update: if false;
-      * @allow delete: if isAdmin();
-      * @allow list: if false;
-      * @principle Restricts all access to admins only.
+      * @allow (get) Anyone can get admin role documents.
+      * @allow (create) Only admins can assign admin roles.
+      * @allow (update) No one can update the roles.
+      * @allow (delete) Only admins can remove admin roles.
+      * @principle Only admins can create or delete admin roles.
       */
     match /roles_admin/{userId} {
-       allow get: if isAdmin();
-       allow list: if false;
-       allow create: if false;
-       allow update: if false;
-       allow delete: if isAdmin();
-    }
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+        allow get: if true;
+        allow list: if false;
+        allow create: if isAdmin();
+        allow update: if false;
+        allow delete: if isAdmin();
     }
   }
 }
