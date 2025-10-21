@@ -61,9 +61,9 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                         <div>
                             <p className="text-sm text-muted-foreground">Original File(s)</p>
                             <div className="font-semibold flex flex-col items-start gap-2">
-                                {order.originalFileNames.map((name, idx) => (
+                                {order.originalFiles.map((file, idx) => (
                                     <div key={idx} className="flex items-center gap-2">
-                                        <span>{name}</span>
+                                        <span>{file.name}</span>
                                         <Button variant="ghost" size="icon" className="h-6 w-6"><Download className="h-4 w-4" /></Button>
                                     </div>
                                 ))}
@@ -184,3 +184,5 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
     </div>
   );
 }
+
+    

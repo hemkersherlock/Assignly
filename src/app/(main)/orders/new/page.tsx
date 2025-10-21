@@ -13,6 +13,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import * as pdfjs from 'pdfjs-dist';
+import { useAuthContext } from "@/context/AuthContext";
+import { useFirebase } from "@/firebase";
+import { addDoc, collection, doc, updateDoc, increment, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { v4 as uuidv4 } from "uuid";
+
 
 // Configure the worker for pdf.js
 if (typeof window !== 'undefined') {
@@ -73,9 +79,12 @@ export default function NewOrderPage() {
   const [orderType, setOrderType] = useState<'assignment' | 'practical'>('assignment');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   const router = useRouter();
   const { toast } = useToast();
+  const { user: appUser } = useAuthContext();
+  const { firestore, storage } = useFirebase();
   
   const totalPageCount = useMemo(() => {
     return files.reduce((acc, file) => acc + (pageCounts[file.name] || 0), 0);
@@ -110,8 +119,7 @@ export default function NewOrderPage() {
     }
   }, [files, pageCounts, getPageCount]);
 
-  // Mocking user quota
-  const currentUserQuota = 40;
+  const currentUserQuota = appUser?.pageQuota ?? 0;
   const remainingQuota = currentUserQuota - totalPageCount;
   const hasSufficientQuota = remainingQuota >= 0;
   
@@ -123,11 +131,11 @@ export default function NewOrderPage() {
       const allFiles = [...files, ...newFiles];
 
       const validFiles = allFiles.filter(file => {
-        if (file.size > 50 * 1024 * 1024) { // 50MB
+        if (file.size > 10 * 1024 * 1024) { // 10MB
           toast({
             variant: "destructive",
             title: "File too large",
-            description: `${file.name} is larger than 50MB.`,
+            description: `${file.name} is larger than 10MB.`,
           });
           return false;
         }
@@ -164,6 +172,10 @@ export default function NewOrderPage() {
   }, []);
 
   const handleSubmit = async () => {
+    if (!appUser) {
+        toast({ variant: "destructive", title: "You must be logged in to submit an order." });
+        return;
+    }
     if (!assignmentTitle.trim()) {
       toast({ variant: "destructive", title: "Assignment title is required." });
       return;
@@ -178,17 +190,80 @@ export default function NewOrderPage() {
     }
 
     setIsSubmitting(true);
-    
-    // Mock submission
-    setTimeout(() => {
-        setIsSubmitting(false);
+    const orderId = uuidv4();
+
+    try {
+        const uploadPromises = files.map(file => {
+            const filePath = `user_uploads/${appUser.id}/${orderId}/${file.name}`;
+            const storageRef = ref(storage, filePath);
+            const uploadTask = uploadBytesResumable(storageRef, file);
+
+            return new Promise<{name: string, url: string}>((resolve, reject) => {
+                uploadTask.on('state_changed',
+                    (snapshot) => {
+                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        setUploadProgress(prev => ({...prev, [file.name]: progress}));
+                    },
+                    (error) => {
+                        console.error(`Upload failed for ${file.name}:`, error);
+                        reject(error);
+                    },
+                    async () => {
+                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                        resolve({ name: file.name, url: downloadURL });
+                    }
+                );
+            });
+        });
+
+        const uploadedFiles = await Promise.all(uploadPromises);
+
+        const ordersCollectionRef = collection(firestore, `users/${appUser.id}/orders`);
+        await addDoc(ordersCollectionRef, {
+            studentId: appUser.id,
+            studentEmail: appUser.email,
+            assignmentTitle,
+            orderType,
+            originalFiles: uploadedFiles,
+            pageCount: totalPageCount,
+            status: "pending",
+            createdAt: serverTimestamp(),
+            startedAt: null,
+            completedAt: null,
+            turnaroundTimeHours: null,
+            notes: null,
+        });
+
+        const userDocRef = doc(firestore, `users/${appUser.id}`);
+        await updateDoc(userDocRef, {
+            pageQuota: increment(-totalPageCount),
+            totalOrdersPlaced: increment(1),
+            totalPagesUsed: increment(totalPageCount),
+        });
+
         toast({
             title: "Order Submitted!",
             description: "Your files have been uploaded and your order is being processed.",
         });
         router.push('/dashboard');
-    }, 2000);
+
+    } catch (error: any) {
+        console.error("Order submission failed:", error);
+        toast({
+            variant: "destructive",
+            title: "Submission Failed",
+            description: error.message || "An unexpected error occurred. Please try again."
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
+
+  const totalProgress = useMemo(() => {
+    if (Object.keys(uploadProgress).length === 0) return 0;
+    const total = Object.values(uploadProgress).reduce((acc, prog) => acc + prog, 0);
+    return total / Object.keys(uploadProgress).length;
+  }, [uploadProgress]);
 
   return (
     <div className="container mx-auto p-0 grid lg:grid-cols-3 gap-8 items-start">
@@ -237,7 +312,7 @@ export default function NewOrderPage() {
                     ref={fileInputRef}
                     className="hidden"
                     onChange={handleFileChange}
-                    accept=".pdf,.docx,.jpg,.jpeg,.png"
+                    accept=".pdf,.doc,.docx,image/jpeg,image/png"
                     disabled={isSubmitting}
                 />
                 {files.length === 0 ? (
@@ -249,7 +324,7 @@ export default function NewOrderPage() {
                   >
                       <UploadCloud className="h-10 w-10 text-muted-foreground" />
                       <p className="mt-2 font-semibold">Drag & drop files or click to browse</p>
-                      <p className="text-sm text-muted-foreground">PDF, DOCX, JPG, PNG up to 50MB each</p>
+                      <p className="text-sm text-muted-foreground">PDF, DOCX, JPG, PNG up to 10MB each</p>
                   </div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -271,6 +346,13 @@ export default function NewOrderPage() {
                     </div>
                 )}
             </div>
+            {isSubmitting && (
+                <div className="space-y-2">
+                    <Label>Upload Progress</Label>
+                    <Progress value={totalProgress} />
+                    <p className="text-sm text-muted-foreground text-center">{Math.round(totalProgress)}% complete</p>
+                </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -319,3 +401,5 @@ export default function NewOrderPage() {
     </div>
   );
 }
+
+    

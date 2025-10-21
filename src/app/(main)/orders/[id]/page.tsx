@@ -32,7 +32,7 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
                 <div>
                     <p className="text-sm text-muted-foreground">Filename(s)</p>
                     <div className="font-semibold flex flex-col">
-                        {order.originalFileNames.map((name, idx) => <span key={idx}>{name}</span>)}
+                        {order.originalFiles.map((file, idx) => <span key={idx}>{file.name}</span>)}
                     </div>
                 </div>
             </div>
@@ -95,3 +95,5 @@ export default function StudentOrderDetailPage({ params }: { params: { id: strin
     </Card>
   );
 }
+
+    

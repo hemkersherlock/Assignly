@@ -19,9 +19,8 @@ export interface Order {
   studentId: string;
   studentEmail: string;
   assignmentTitle: string;
-  originalFileNames: string[];
+  originalFiles: { name: string, url: string }[];
   orderType: "assignment" | "practical";
-  originalFileUrls: string[];
   pageCount: number;
   status: "pending" | "in_progress" | "completed";
   completedFileUrl: string | null;
@@ -57,3 +56,5 @@ export interface MonthlyAnalytics {
     activeStudents: number;
     revenue?: number; // Optional
 }
+
+    
