@@ -93,6 +93,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               console.log('ðŸ”‘ Auth UID:', firebaseUser.uid);
               console.log('ðŸ“ Document path:', `users/${firebaseUser.uid}`);
 
+              // Ensure auth token is ready before Firestore operations
+              await firebaseUser.getIdToken();
+              
               // Add retry logic with exponential backoff to handle auth token propagation
               let retryCount = 0;
               const maxRetries = 3;
@@ -120,8 +123,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   }
                 }
               }
-
-              console.log('âœ… User document created successfully!');
 
               // Re-fetch to confirm
               const verifyDoc = await getDoc(userDocRef);
