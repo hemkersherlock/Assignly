@@ -43,7 +43,11 @@ export async function createOrderFolder(orderId: string): Promise<string> {
   }
 }
 
-export async function uploadFileToDrive(fileData: {name: string, type: string, size: number, data: number[]}, folderId: string): Promise<{id: string, webViewLink: string}> {
+// Accept a serializable object instead of a File or Buffer
+export async function uploadFileToDrive(
+    fileData: { name: string; type: string; size: number; data: number[] }, 
+    folderId: string
+): Promise<{id: string, webViewLink: string}> {
     if (!client_email || !private_key || !parentFolderId) {
       return disabledError();
     }
@@ -63,6 +67,7 @@ export async function uploadFileToDrive(fileData: {name: string, type: string, s
         parents: [folderId],
     };
 
+    // Reconstruct the Buffer from the number array
     const media = {
         mimeType: fileData.type,
         body: Readable.from(Buffer.from(new Uint8Array(fileData.data))),
@@ -77,6 +82,7 @@ export async function uploadFileToDrive(fileData: {name: string, type: string, s
 
         const fileId = uploadedFile.data.id!;
 
+        // Make the file publicly readable
         await drive.permissions.create({
             fileId: fileId,
             requestBody: {
