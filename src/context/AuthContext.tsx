@@ -93,7 +93,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               console.log('ðŸ”‘ Auth UID:', firebaseUser.uid);
               console.log('ðŸ“ Document path:', `users/${firebaseUser.uid}`);
 
-              await setDoc(userDocRef, newUser);
+              // Add retry logic with exponential backoff to handle auth token propagation
+              let retryCount = 0;
+              const maxRetries = 3;
+              const baseDelay = 100; // Start with 100ms delay
+              
+              while (retryCount < maxRetries) {
+                try {
+                  // Add a small delay to ensure auth token is propagated
+                  if (retryCount > 0) {
+                    const delay = baseDelay * Math.pow(2, retryCount - 1);
+                    console.log(`🔄 Retry attempt ${retryCount + 1}/${maxRetries} after ${delay}ms delay`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                  }
+                  
+                  await setDoc(userDocRef, newUser);
+                  console.log('✅ User document created successfully!');
+                  break; // Success, exit retry loop
+                  
+                } catch (error: any) {
+                  retryCount++;
+                  console.error(`❌ Retry ${retryCount}/${maxRetries} failed:`, error.message);
+                  
+                  if (retryCount >= maxRetries) {
+                    throw error; // Re-throw the last error if all retries failed
+                  }
+                }
+              }
 
               console.log('âœ… User document created successfully!');
 
