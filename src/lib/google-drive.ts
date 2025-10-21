@@ -14,67 +14,64 @@ export interface SerializableFile {
   data: number[];
 }
 
-/**
- * Interface for Google Auth credentials.
- */
-interface GoogleDriveCredentials {
-  client_email: string;
-  private_key: string;
+type ServiceAccountCreds = { client_email: string; private_key: string };
+
+function tryParseJson(text: string): any {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+function maybeBase64Decode(text: string): string {
+  try {
+    // Heuristics: if it doesn't start with '{', try base64
+    if (!text.trim().startsWith('{')) {
+      return Buffer.from(text, 'base64').toString('utf8');
+    }
+  } catch {}
+  return text;
 }
 
 /**
  * Retrieves and validates Google Drive credentials from environment variables.
- * It supports either a full JSON string or individual email/key variables.
- * @returns {GoogleDriveCredentials} The validated credentials.
- * @throws {Error} If required environment variables are not set.
+ * It supports a full JSON string, a base64 encoded JSON string, or individual email/key variables.
+ * @returns {ServiceAccountCreds} The validated credentials.
+ * @throws {Error} If required environment variables are not set or invalid.
  */
-function getCredentials(): GoogleDriveCredentials {
-  const {
-    GOOGLE_APPLICATION_CREDENTIALS_JSON,
-    GOOGLE_DRIVE_CLIENT_EMAIL,
-    GOOGLE_DRIVE_PRIVATE_KEY,
-    GOOGLE_DRIVE_PARENT_FOLDER_ID,
-  } = process.env;
+function getCredentials(): ServiceAccountCreds {
+    const jsonEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON?.trim();
+    const emailEnv = process.env.GOOGLE_DRIVE_CLIENT_EMAIL?.trim();
+    const keyEnvRaw = process.env.GOOGLE_DRIVE_PRIVATE_KEY;
 
-  if (!GOOGLE_DRIVE_PARENT_FOLDER_ID) {
-    throw new Error(
-      'Google Drive is not configured. Missing required environment variable: GOOGLE_DRIVE_PARENT_FOLDER_ID.'
-    );
-  }
-
-  if (GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-    try {
-      const parsedCreds = JSON.parse(GOOGLE_APPLICATION_CREDENTIALS_JSON);
-      if (parsedCreds.client_email && parsedCreds.private_key) {
-        return {
-          client_email: parsedCreds.client_email,
-          private_key: parsedCreds.private_key,
-        };
-      }
-    } catch (e) {
-      throw new Error(
-        'Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON. Please ensure it is a valid, non-empty JSON string.'
-      );
+    if (!process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID) {
+        throw new Error('Google Drive is not configured. Missing required environment variable: GOOGLE_DRIVE_PARENT_FOLDER_ID.');
     }
-  }
 
-  if (GOOGLE_DRIVE_CLIENT_EMAIL && GOOGLE_DRIVE_PRIVATE_KEY) {
-    return {
-      client_email: GOOGLE_DRIVE_CLIENT_EMAIL,
-      private_key: GOOGLE_DRIVE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    };
-  }
+    if (jsonEnv && jsonEnv !== '{}') {
+        const text = maybeBase64Decode(jsonEnv);
+        const parsed = tryParseJson(text);
+        if (!parsed) {
+        throw new Error('Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON. Provide valid JSON or base64-encoded JSON.');
+        }
+        const client_email = parsed.client_email as string | undefined;
+        const private_key = parsed.private_key as string | undefined;
+        if (!client_email || !private_key) {
+        throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON is missing client_email or private_key.');
+        }
+        return { client_email, private_key };
+    }
 
-  throw new Error(
-    'Google Drive credentials are not configured. Please set either GOOGLE_APPLICATION_CREDENTIALS_JSON OR (GOOGLE_DRIVE_CLIENT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY).'
-  );
+    if (emailEnv && keyEnvRaw) {
+        const private_key = keyEnvRaw.replace(/\\n/g, '\n');
+        return { client_email: emailEnv, private_key };
+    }
+
+    throw new Error('Credentials not configured. Set GOOGLE_APPLICATION_CREDENTIALS_JSON (JSON or base64) or both GOOGLE_DRIVE_CLIENT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY.');
 }
 
 /**
  * Creates and returns an authenticated Google Drive API client.
  * @returns {object} An object containing the drive client and the service account email.
  */
-function getDriveClient(): { drive: drive_v3.Drive, client_email: string } {
+function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
   const credentials = getCredentials();
   const auth = new google.auth.GoogleAuth({
     credentials,
@@ -82,9 +79,10 @@ function getDriveClient(): { drive: drive_v3.Drive, client_email: string } {
   });
   return {
     drive: google.drive({ version: 'v3', auth }),
-    client_email: credentials.client_email,
+    saEmail: credentials.client_email,
   };
 }
+
 
 /**
  * Verifies that the service account has access to the parent folder.
@@ -160,11 +158,11 @@ function handleGoogleApiError(error: any, context: string): Error {
  */
 export async function createOrderFolder(orderId: string): Promise<string> {
   const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID!;
-  const { drive, client_email } = getDriveClient();
+  const { drive, saEmail } = getDriveClient();
   
   try {
     // 1. Verify access to the parent folder before trying to create anything.
-    await verifyParentFolderAccess(drive, parentFolderId, client_email);
+    await verifyParentFolderAccess(drive, parentFolderId, saEmail);
 
     // 2. If access is verified, proceed to create the order folder.
     const fileMetadata = {
