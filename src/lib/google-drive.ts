@@ -1,4 +1,3 @@
-
 'use server';
 
 import { google } from 'googleapis';
@@ -6,7 +5,7 @@ import { Readable } from 'stream';
 
 const client_email = process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
 // The private key needs to have its newlines restored.
-const private_key = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+const private_key = process.env.GOOGLE_DRIVE_PRIVATE_KEY;
 const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 
 const disabledError = () => {
@@ -70,11 +69,9 @@ export async function uploadFileToDrive(
     };
     
     // Reconstruct the Buffer from the number array
-    const buffer = Buffer.from(new Uint8Array(fileData.data));
-
     const media = {
         mimeType: fileData.type,
-        body: Readable.from(buffer), // Create a readable stream from the buffer
+        body: Readable.from(Buffer.from(new Uint8Array(fileData.data))),
     };
 
     try {
