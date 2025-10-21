@@ -1,6 +1,5 @@
 
 'use server';
-export const runtime = 'nodejs';
 
 import { google } from 'googleapis';
 import { Readable } from 'stream';
