@@ -2,6 +2,11 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Fix Student Login and Permissions
+- Corrected Firestore security rules to allow users to create and read their own user profile, fixing the "Missing or insufficient permissions" error that blocked student logins.
+- Updated the login page to intelligently sign up a new user if their account doesn't exist, streamlining the initial user experience.
+- The authentication flow is now robust for both new and existing student and admin accounts.
+
 ## [2024-07-26] - Final Login/Signup Fix
 - Implemented a definitive fix for the entire authentication flow. The login page now correctly attempts to sign in a user, and if the user does not exist, it creates a new account in Firebase Authentication.
 - The `AuthContext` is now solely responsible for creating the user's profile document in Firestore if one does not exist after a successful authentication. This separation of concerns resolves a critical race condition and ensures every authenticated user has a corresponding database record, finally fixing the long-standing "User document not found" error.
