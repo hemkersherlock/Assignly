@@ -2,14 +2,23 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    // Files are stored at: user_uploads/{userId}/{orderId}/{fileName}
+    match /user_uploads/{userId}/{orderId}/{fileName} {
+      // Allow create (upload) operation if:
+      // 1. The user is authenticated.
+      // 2. The user ID in the path matches the authenticated user's ID.
+      // 3. The uploaded file is less than 10MB.
+      // 4. The file type is one of the allowed types.
+      allow create: if request.auth != null 
+                    && request.auth.uid == userId
+                    && request.resource.size < 10 * 1024 * 1024
+                    && request.resource.contentType.matches('image/jpeg|image/png|application/pdf');
 
-    // Only authenticated users can upload files.
-    // Files must be uploaded to a path that includes their own user ID.
-    // This rule allows uploads to paths like: /uploads/{userId}/{orderId}/{fileName}
-    // We check that the uploaded file path starts with `/uploads/` followed by the user's UID.
-    match /uploads/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow read (download) if the user is authenticated and is the owner, or if the user is an admin.
+      allow read: if request.auth != null && (request.auth.uid == userId || exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)));
+
+      // Allow delete only by the user who uploaded it.
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
-    
   }
 }
