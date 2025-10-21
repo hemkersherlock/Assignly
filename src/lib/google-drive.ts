@@ -48,15 +48,13 @@ function getCredentials(): ServiceAccountCreds {
     if (jsonEnv && jsonEnv !== '{}') {
         const text = maybeBase64Decode(jsonEnv);
         const parsed = tryParseJson(text);
-        if (!parsed) {
-        throw new Error('Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON. Provide valid JSON or base64-encoded JSON.');
+        if (parsed) {
+            const client_email = parsed.client_email as string | undefined;
+            const private_key = parsed.private_key as string | undefined;
+            if (client_email && private_key) {
+                return { client_email, private_key: private_key.replace(/\\n/g, '\n') };
+            }
         }
-        const client_email = parsed.client_email as string | undefined;
-        const private_key = parsed.private_key as string | undefined;
-        if (!client_email || !private_key) {
-        throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON is missing client_email or private_key.');
-        }
-        return { client_email, private_key };
     }
 
     if (emailEnv && keyEnvRaw) {
@@ -120,7 +118,7 @@ async function verifyParentFolderAccess(drive: drive_v3.Drive, parentId: string,
  */
 function handleGoogleApiError(error: any, context: string): Error {
   const originalMessage = error.message || 'An unknown error occurred.';
-  const status = error.code;
+  const status = error.code || error?.response?.status;
   console.error(`Google Drive API Error during ${context}:`, {
       status,
       message: originalMessage,
