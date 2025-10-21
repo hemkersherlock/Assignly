@@ -11,6 +11,40 @@ const disabledError = () => {
     throw new Error("Google Drive integration is not configured. Please ensure GOOGLE_DRIVE_CLIENT_EMAIL, GOOGLE_DRIVE_PRIVATE_KEY, and GOOGLE_DRIVE_PARENT_FOLDER_ID are set in your environment variables.");
 };
 
+// Verify that the parent folder exists and is accessible
+async function verifyParentFolderAccess(drive: any, parentFolderId: string): Promise<void> {
+    try {
+        console.log('🔍 Debug: Verifying parent folder access for ID:', parentFolderId);
+        
+        const folder = await drive.files.get({
+            fileId: parentFolderId,
+            fields: 'id, name, mimeType, parents'
+        });
+        
+        console.log('✅ Debug: Parent folder verified:', {
+            id: folder.data.id,
+            name: folder.data.name,
+            mimeType: folder.data.mimeType
+        });
+        
+        // Verify it's actually a folder
+        if (folder.data.mimeType !== 'application/vnd.google-apps.folder') {
+            throw new Error(`The specified parent folder ID (${parentFolderId}) is not a folder. It's a ${folder.data.mimeType}`);
+        }
+        
+    } catch (error: any) {
+        console.error('❌ Debug: Parent folder verification failed:', error);
+        
+        if (error.code === 404) {
+            throw new Error(`Parent folder not found (404). Please verify that GOOGLE_DRIVE_PARENT_FOLDER_ID is correct: ${parentFolderId}`);
+        } else if (error.code === 403) {
+            throw new Error(`Access denied to parent folder (403). Please ensure your service account has access to folder: ${parentFolderId}`);
+        } else {
+            throw new Error(`Failed to verify parent folder access: ${error.message}`);
+        }
+    }
+}
+
 export async function createOrderFolder(orderId: string): Promise<string> {
   console.log('🔍 Debug: Starting folder creation for order:', orderId);
   console.log('🔍 Debug: Environment variables check:');
@@ -34,6 +68,9 @@ export async function createOrderFolder(orderId: string): Promise<string> {
     });
 
     const drive = google.drive({ version: 'v3', auth });
+    
+    // Verify parent folder access before creating subfolder
+    await verifyParentFolderAccess(drive, parentFolderId);
     
     const fileMetadata = {
         name: `Order_${orderId}`,
