@@ -206,12 +206,25 @@ export default function NewOrderPage() {
             const file = files[i];
             
             // Convert File to serializable format
+            console.log('🔍 Client Debug: Processing file:', file.name);
+            console.log('🔍 Client Debug: File size:', file.size, 'bytes');
+            console.log('🔍 Client Debug: File type:', file.type);
+            
+            const arrayBuffer = await file.arrayBuffer();
+            console.log('🔍 Client Debug: ArrayBuffer length:', arrayBuffer.byteLength);
+            
+            const uint8Array = new Uint8Array(arrayBuffer);
+            console.log('🔍 Client Debug: Uint8Array length:', uint8Array.length);
+            console.log('🔍 Client Debug: First 10 bytes:', Array.from(uint8Array.slice(0, 10)));
+            
             const fileData = {
                 name: file.name,
                 type: file.type,
                 size: file.size,
-                data: Array.from(new Uint8Array(await file.arrayBuffer()))
+                data: Array.from(uint8Array)
             };
+            
+            console.log('🔍 Client Debug: Serialized data length:', fileData.data.length);
             
             // Pass serializable data to server action
             const uploadedFile = await uploadFileToDrive(fileData, driveFolderId);

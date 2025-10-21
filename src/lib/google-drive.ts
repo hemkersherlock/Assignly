@@ -68,9 +68,17 @@ export async function uploadFileToDrive(
     };
 
     // Reconstruct the Buffer from the number array
+    console.log('🔍 Debug: Reconstructing file data...');
+    console.log('🔍 Debug: Original data array length:', fileData.data.length);
+    console.log('🔍 Debug: First 10 data values:', fileData.data.slice(0, 10));
+    
+    const reconstructedBuffer = Buffer.from(new Uint8Array(fileData.data));
+    console.log('🔍 Debug: Reconstructed buffer length:', reconstructedBuffer.length);
+    console.log('🔍 Debug: First 10 buffer bytes:', Array.from(reconstructedBuffer.slice(0, 10)));
+    
     const media = {
         mimeType: fileData.type,
-        body: Readable.from(Buffer.from(new Uint8Array(fileData.data))),
+        body: Readable.from(reconstructedBuffer),
     };
 
     try {
