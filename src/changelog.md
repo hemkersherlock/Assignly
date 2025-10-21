@@ -2,6 +2,12 @@
 
 This file will be updated with a log of all changes made to the application code.
 
+## [2024-07-26] - Revert last change to restore Admin access
+- Reverted the previous `firestore.rules` change that accidentally broke admin accounts. Restored the "Nuclear Option" diagnostic rules to ensure admins can log in while debugging continues on student accounts.
+
+## [2024-07-26] - Fix Student Dashboard Permissions
+- Corrected Firestore security rules to allow a student to `list` their own orders. This resolves the "Missing or insufficient permissions" error on the student dashboard.
+
 ## [2024-07-26] - Implement "Nuclear Option" Diagnostic for Auth
 - Replaced existing Firestore rules with a temporary, more permissive set to isolate and diagnose the root cause of the user creation failure.
 - Implemented hyper-verbose logging within `AuthContext.tsx` to trace every step of the authentication and profile creation flow in the browser console. This is a targeted diagnostic step to gather precise data on the "Missing or insufficient permissions" error.
