@@ -63,6 +63,11 @@ function getCredentials(): ServiceAccountCreds {
     throw new Error('Credentials not configured. Set GOOGLE_APPLICATION_CREDENTIALS_JSON (JSON or base64) or both GOOGLE_DRIVE_CLIENT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY.');
 }
 
+// Log diagnostic info once at server start
+const credsForLog = getCredentials();
+console.info(`[Assignly] Google Drive integration loaded. Using SA: ${credsForLog.client_email}, Parent Folder ID Prefix: ${process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID?.substring(0, 6)}...`);
+
+
 /**
  * Creates and returns an authenticated Google Drive API client for each request.
  * @returns {object} An object containing the drive client and the service account email.
@@ -81,29 +86,35 @@ function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
 
 
 /**
- * Verifies that the service account has access to the parent folder.
+ * Verifies that the service account has access to the parent folder and it's a valid folder.
  * @param drive - The authenticated Google Drive client.
  * @param parentId - The ID of the parent folder.
  * @param saEmail - The service account email address.
- * @throws {Error} If the parent folder is not accessible.
+ * @throws {Error} If the parent folder is not accessible or invalid.
  */
 async function verifyParentFolderAccess(drive: drive_v3.Drive, parentId: string, saEmail: string) {
     try {
-        await drive.files.get({
+        const response = await drive.files.get({
             fileId: parentId,
-            fields: 'id',
+            fields: 'id, name, mimeType, trashed',
             supportsAllDrives: true,
         });
+
+        if (response.data.mimeType !== 'application/vnd.google-apps.folder') {
+            throw new Error(`The specified GOOGLE_DRIVE_PARENT_FOLDER_ID does not point to a folder.`);
+        }
+
+        if (response.data.trashed) {
+            throw new Error(`The specified parent folder is in the trash. Please restore it.`);
+        }
     } catch (err: any) {
         const status = err?.code || err?.response?.status;
         console.error('Parent folder access check failed:', { status, parentId, saEmail });
-        if (status === 404) {
-            throw new Error(`Parent folder not found (404). Please verify that GOOGLE_DRIVE_PARENT_FOLDER_ID is correct: ${parentId}`);
+        
+        if (status === 404 || status === 403) {
+            throw new Error(`Parent folder not accessible (API Status: ${status}). Please verify that GOOGLE_DRIVE_PARENT_FOLDER_ID is correct and that the folder is shared with the service account email "${saEmail}" as an "Editor".`);
         }
-        if (status === 403) {
-            throw new Error(`Permission denied (403). Please share the parent folder with the service account email "${saEmail}" as an "Editor".`);
-        }
-        throw new Error(`Failed to access parent folder. Ensure it exists and the service account has permissions.`);
+        throw new Error(`Failed to access parent folder. Ensure it exists and the service account has permissions. API Status: ${status}`);
     }
 }
 
@@ -174,10 +185,11 @@ export async function createOrderFolder(orderId: string): Promise<string> {
     
     return folder.data.id!;
   } catch (error) {
-    // If the error came from our verification step, it's already specific.
-    if (error instanceof Error && (error.message.includes('(404)') || error.message.includes('(403)'))) {
+    // If it's one of our specific verification errors, just re-throw it.
+    if (error instanceof Error && (error.message.includes('(API Status: 404)') || error.message.includes('(API Status: 403)'))) {
         throw error;
     }
+    // Otherwise, wrap it in the generic handler.
     throw handleGoogleApiError(error, `creating folder for order ${orderId}`);
   }
 }
@@ -203,7 +215,6 @@ export async function uploadFileToDrive(
 
     const media = {
       mimeType: fileData.type,
-      // **FIX**: Reconstruct the file Buffer from the serialized number array.
       body: Readable.from(Buffer.from(new Uint8Array(fileData.data))),
     };
 
@@ -219,7 +230,6 @@ export async function uploadFileToDrive(
       throw new Error('File ID was not returned from Google Drive API.');
     }
 
-    // Attempt to make the file public, but do not fail the whole upload if this step fails.
     try {
       await drive.permissions.create({
         fileId: fileId,
@@ -230,7 +240,6 @@ export async function uploadFileToDrive(
         supportsAllDrives: true,
       });
     } catch (permError: any) {
-      // This is the key fix. We log a warning instead of throwing an error.
       console.warn(
         `Warning: Could not set public permissions for file "${fileData.name}" (ID: ${fileId}). This may be due to shared drive policies. The file was still uploaded successfully.`,
         permError.message
