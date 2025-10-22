@@ -270,19 +270,30 @@ export default function NewOrderPage() {
       for (let i = 0; i < files.length; i++) {
           const file = files[i];
           
-          // **FIX**: Convert File to a serializable plain object before sending to the server action.
-          const serializableFile = {
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              // Convert ArrayBuffer to a plain number array for serialization.
-              data: Array.from(new Uint8Array(await file.arrayBuffer())) 
-          };
-          
-          // Pass the serializable data, not the raw File object.
-          const uploadedFile = await uploadFileToDrive(serializableFile, driveFolderId);
-          uploadedFiles.push({ name: file.name, url: uploadedFile.webViewLink });
-          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+          try {
+              console.log(`[Frontend] Processing file ${i + 1}/${files.length}: ${file.name}`);
+              
+              // **FIX**: Convert File to a serializable plain object before sending to the server action.
+              const serializableFile = {
+                  name: file.name,
+                  type: file.type,
+                  size: file.size,
+                  // Convert ArrayBuffer to a plain number array for serialization.
+                  data: Array.from(new Uint8Array(await file.arrayBuffer())) 
+              };
+              
+              console.log(`[Frontend] File serialized: ${file.name}, data length: ${serializableFile.data.length}`);
+              
+              // Pass the serializable data, not the raw File object.
+              const uploadedFile = await uploadFileToDrive(serializableFile, driveFolderId);
+              console.log(`[Frontend] File uploaded successfully: ${file.name}, ID: ${uploadedFile.id}`);
+              
+              uploadedFiles.push({ name: file.name, url: uploadedFile.webViewLink });
+              setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+          } catch (fileError) {
+              console.error(`[Frontend] Failed to upload file ${file.name}:`, fileError);
+              throw new Error(`Failed to upload file "${file.name}": ${fileError instanceof Error ? fileError.message : 'Unknown error'}`);
+          }
       }
 
       // 3. Batch write to Firestore

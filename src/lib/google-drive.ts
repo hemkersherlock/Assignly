@@ -168,8 +168,13 @@ export async function createOrderFolder(orderId: string): Promise<string> {
   const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID!;
   
   try {
+    console.log(`[Google Drive] Creating folder for order: ${orderId}, parent folder: ${parentFolderId}`);
+    
     const { drive, saEmail } = getDriveClient();
+    console.log(`[Google Drive] Drive client created for service account: ${saEmail}`);
+    
     await verifyParentFolderAccess(drive, parentFolderId, saEmail);
+    console.log(`[Google Drive] Parent folder access verified`);
 
     const fileMetadata = {
       name: `Order_${orderId}`,
@@ -177,14 +182,19 @@ export async function createOrderFolder(orderId: string): Promise<string> {
       parents: [parentFolderId],
     };
 
+    console.log(`[Google Drive] Creating folder with metadata:`, fileMetadata);
     const folder = await drive.files.create({
       requestBody: fileMetadata,
       fields: 'id',
       supportsAllDrives: true,
     });
     
-    return folder.data.id!;
+    const folderId = folder.data.id!;
+    console.log(`[Google Drive] Folder created successfully with ID: ${folderId}`);
+    
+    return folderId;
   } catch (error) {
+    console.error(`[Google Drive] Failed to create folder for order ${orderId}:`, error);
     // If it's one of our specific verification errors, just re-throw it.
     if (error instanceof Error && (error.message.includes('(API Status: 404)') || error.message.includes('(API Status: 403)'))) {
         throw error;
@@ -208,6 +218,8 @@ export async function uploadFileToDrive(
   let fileId: string | null = null;
   const { drive } = getDriveClient();
   try {
+    console.log(`[Google Drive] Starting upload for file: ${fileData.name}, size: ${fileData.data.length} bytes, folder: ${folderId}`);
+    
     const fileMetadata = {
       name: fileData.name,
       parents: [folderId],
@@ -218,6 +230,7 @@ export async function uploadFileToDrive(
       body: Readable.from(Buffer.from(new Uint8Array(fileData.data))),
     };
 
+    console.log(`[Google Drive] Creating file with metadata:`, fileMetadata);
     const uploadedFile = await drive.files.create({
       requestBody: fileMetadata,
       media: media,
@@ -230,6 +243,8 @@ export async function uploadFileToDrive(
       throw new Error('File ID was not returned from Google Drive API.');
     }
 
+    console.log(`[Google Drive] File uploaded successfully with ID: ${fileId}`);
+
     try {
       await drive.permissions.create({
         fileId: fileId,
@@ -239,6 +254,7 @@ export async function uploadFileToDrive(
         },
         supportsAllDrives: true,
       });
+      console.log(`[Google Drive] Public permissions set for file: ${fileId}`);
     } catch (permError: any) {
       console.warn(
         `Warning: Could not set public permissions for file "${fileData.name}" (ID: ${fileId}). This may be due to shared drive policies. The file was still uploaded successfully.`,
@@ -247,10 +263,165 @@ export async function uploadFileToDrive(
     }
     
     const webViewLink = uploadedFile.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+    console.log(`[Google Drive] Upload complete for ${fileData.name}, webViewLink: ${webViewLink}`);
 
     return { id: fileId, webViewLink };
 
   } catch (error) {
+    console.error(`[Google Drive] Upload failed for ${fileData.name}:`, error);
     throw handleGoogleApiError(error, `uploading file "${fileData.name}"`);
   }
+}
+
+/**
+ * Test result interface for Google Drive setup validation
+ */
+export interface TestResult {
+  name: string;
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Comprehensive test function to validate Google Drive setup
+ * @returns {Promise<TestResult[]>} Array of test results
+ */
+export async function testGoogleDriveSetup(): Promise<TestResult[]> {
+  const results: TestResult[] = [];
+  
+  // Test 1: Environment Variables
+  try {
+    const hasParentFolder = !!process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
+    const hasJsonCreds = !!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    const hasEmailCreds = !!process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
+    const hasKeyCreds = !!process.env.GOOGLE_DRIVE_PRIVATE_KEY;
+    
+    if (!hasParentFolder) {
+      results.push({
+        name: 'Environment Variables - Parent Folder ID',
+        success: false,
+        message: 'GOOGLE_DRIVE_PARENT_FOLDER_ID is not set'
+      });
+    } else {
+      results.push({
+        name: 'Environment Variables - Parent Folder ID',
+        success: true,
+        message: 'GOOGLE_DRIVE_PARENT_FOLDER_ID is configured'
+      });
+    }
+    
+    if (!hasJsonCreds && (!hasEmailCreds || !hasKeyCreds)) {
+      results.push({
+        name: 'Environment Variables - Credentials',
+        success: false,
+        message: 'No valid credential configuration found. Set GOOGLE_APPLICATION_CREDENTIALS_JSON or both GOOGLE_DRIVE_CLIENT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY'
+      });
+    } else {
+      results.push({
+        name: 'Environment Variables - Credentials',
+        success: true,
+        message: hasJsonCreds ? 'JSON credentials configured' : 'Email/Key credentials configured'
+      });
+    }
+  } catch (error: any) {
+    results.push({
+      name: 'Environment Variables',
+      success: false,
+      message: `Error checking environment variables: ${error.message}`
+    });
+  }
+  
+  // Test 2: Credential Validation
+  try {
+    const credentials = getCredentials();
+    results.push({
+      name: 'Credential Validation',
+      success: true,
+      message: `Credentials loaded successfully for service account: ${credentials.client_email}`
+    });
+  } catch (error: any) {
+    results.push({
+      name: 'Credential Validation',
+      success: false,
+      message: `Credential validation failed: ${error.message}`
+    });
+    return results; // Can't proceed without valid credentials
+  }
+  
+  // Test 3: Google Drive API Client
+  try {
+    const { drive, saEmail } = getDriveClient();
+    results.push({
+      name: 'Google Drive API Client',
+      success: true,
+      message: `Drive client created successfully for service account: ${saEmail}`
+    });
+  } catch (error: any) {
+    results.push({
+      name: 'Google Drive API Client',
+      success: false,
+      message: `Failed to create Drive client: ${error.message}`
+    });
+    return results; // Can't proceed without valid client
+  }
+  
+  // Test 4: Parent Folder Access
+  try {
+    const { drive, saEmail } = getDriveClient();
+    const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID!;
+    await verifyParentFolderAccess(drive, parentFolderId, saEmail);
+    results.push({
+      name: 'Parent Folder Access',
+      success: true,
+      message: `Successfully accessed parent folder: ${parentFolderId}`
+    });
+  } catch (error: any) {
+    results.push({
+      name: 'Parent Folder Access',
+      success: false,
+      message: `Failed to access parent folder: ${error.message}`
+    });
+  }
+  
+  // Test 5: Test Folder Creation
+  try {
+    const testFolderId = await createOrderFolder('test-' + Date.now());
+    results.push({
+      name: 'Test Folder Creation',
+      success: true,
+      message: `Test folder created successfully with ID: ${testFolderId}`
+    });
+  } catch (error: any) {
+    results.push({
+      name: 'Test Folder Creation',
+      success: false,
+      message: `Failed to create test folder: ${error.message}`
+    });
+  }
+  
+  // Test 6: Test File Upload
+  try {
+    const testFolderId = await createOrderFolder('upload-test-' + Date.now());
+    const testFile: SerializableFile = {
+      name: 'test-file.txt',
+      type: 'text/plain',
+      size: 13,
+      data: Array.from(new TextEncoder().encode('Hello, World!'))
+    };
+    
+    const uploadResult = await uploadFileToDrive(testFile, testFolderId);
+    results.push({
+      name: 'Test File Upload',
+      success: true,
+      message: `Test file uploaded successfully. ID: ${uploadResult.id}, Link: ${uploadResult.webViewLink}`
+    });
+  } catch (error: any) {
+    results.push({
+      name: 'Test File Upload',
+      success: false,
+      message: `Failed to upload test file: ${error.message}`
+    });
+  }
+  
+  return results;
 }
