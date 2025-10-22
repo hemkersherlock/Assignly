@@ -16,6 +16,16 @@ export interface SerializableFile {
 
 type ServiceAccountCreds = { client_email: string; private_key: string };
 
+let driveEnvLogged = false;
+function logDriveEnvInfoOnce(serviceAccountEmail: string) {
+  if (driveEnvLogged) return;
+  const parentPrefix = (process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID || '').slice(0, 6) || 'unset';
+  console.info(
+    `[Drive] Using service account ${serviceAccountEmail}. Parent ID prefix: ${parentPrefix}`
+  );
+  driveEnvLogged = true;
+}
+
 function tryParseJson(text: string): any {
   try { return JSON.parse(text); } catch { return null; }
 }
@@ -73,11 +83,15 @@ function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
   const credentials = getCredentials();
   const auth = new google.auth.GoogleAuth({
     credentials,
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    // Use full Drive scope to allow reading existing folder metadata
+    // and creating content in Shared Drives when properly shared.
+    scopes: ['https://www.googleapis.com/auth/drive'],
   });
+  const saEmail = credentials.client_email;
+  logDriveEnvInfoOnce(saEmail);
   return {
     drive: google.drive({ version: 'v3', auth }),
-    saEmail: credentials.client_email,
+    saEmail,
   };
 }
 
@@ -90,23 +104,35 @@ function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
  * @throws {Error} If the parent folder is not accessible.
  */
 async function verifyParentFolderAccess(drive: drive_v3.Drive, parentId: string, saEmail: string) {
-    try {
-        await drive.files.get({
-            fileId: parentId,
-            fields: 'id',
-            supportsAllDrives: true,
-        });
-    } catch (err: any) {
-        const status = err?.code || err?.response?.status;
-        console.error('Parent folder access check failed:', { status, parentId, saEmail });
-        if (status === 404) {
-            throw new Error(`Parent folder not found (404). Please verify that GOOGLE_DRIVE_PARENT_FOLDER_ID is correct: ${parentId}`);
-        }
-        if (status === 403) {
-            throw new Error(`Permission denied (403). Please share the parent folder with the service account email "${saEmail}" as an "Editor".`);
-        }
-        throw new Error(`Failed to access parent folder. Ensure it exists and the service account has permissions.`);
+  try {
+    const res = await drive.files.get({
+      fileId: parentId,
+      fields: 'id, name, mimeType, trashed, driveId, parents',
+      supportsAllDrives: true,
+    });
+    const meta = res.data as drive_v3.Schema$File;
+    if (meta.trashed) {
+      throw new Error(
+        `Target folder is in trash. Restore it or use a valid folder ID.`
+      );
     }
+    if (meta.mimeType !== 'application/vnd.google-apps.folder') {
+      throw new Error(
+        `Provided ID is not a folder. Please set GOOGLE_DRIVE_PARENT_FOLDER_ID to a folder ID.`
+      );
+    }
+  } catch (err: any) {
+    const status = err?.code || err?.response?.status;
+    console.error('Parent folder access check failed:', { status, parentId, saEmail });
+    if (status === 404 || status === 403) {
+      throw new Error(
+        `Target folder not accessible (${status}). Verify the folder ID and share it (or its Shared Drive) with the service account "${saEmail}" as Editor/Content Manager.`
+      );
+    }
+    throw new Error(
+      `Failed to access parent folder. Ensure it exists and the service account has permissions.`
+    );
+  }
 }
 
 
@@ -116,7 +142,11 @@ async function verifyParentFolderAccess(drive: drive_v3.Drive, parentId: string,
  * @param {string} context - A string describing the operation that failed.
  * @returns {Error} A new Error with a user-friendly message.
  */
-function handleGoogleApiError(error: any, context: string): Error {
+function handleGoogleApiError(
+  error: any,
+  context: string,
+  opts?: { saEmail?: string; folderId?: string }
+): Error {
   const status = error?.code || error?.response?.status;
   const originalMessage = error.message || 'An unknown error occurred.';
 
@@ -132,8 +162,9 @@ function handleGoogleApiError(error: any, context: string): Error {
     );
   }
   if (status === 403) {
+    const saHint = opts?.saEmail ? ` Service account: ${opts.saEmail}.` : '';
     return new Error(
-      'Permission denied. Please ensure the Google Drive API is enabled in your GCP project and the parent folder has been shared with the service account email as an "Editor".'
+      `Permission denied (403). Ensure Google Drive API is enabled and the target folder or Shared Drive is shared with the service account as Editor/Content Manager.${saHint}`
     );
   }
   if (status === 404) {
@@ -184,7 +215,10 @@ export async function createOrderFolder(orderId: string): Promise<string> {
     if (error instanceof Error && (error.message.includes('(404)') || error.message.includes('(403)'))) {
         throw error;
     }
-    throw handleGoogleApiError(error, `creating folder for order ${orderId}`);
+    throw handleGoogleApiError(error, `creating folder for order ${orderId}`, {
+      saEmail,
+      folderId: parentFolderId,
+    });
   }
 }
 
@@ -200,7 +234,7 @@ export async function uploadFileToDrive(
   folderId: string
 ): Promise<{ id: string; webViewLink: string }> {
   let fileId: string | null = null;
-  const { drive } = getDriveClient();
+  const { drive, saEmail } = getDriveClient();
   try {
     const fileMetadata = {
       name: fileData.name,
@@ -245,6 +279,9 @@ export async function uploadFileToDrive(
     return { id: fileId, webViewLink };
 
   } catch (error) {
-    throw handleGoogleApiError(error, `uploading file "${fileData.name}"`);
+    throw handleGoogleApiError(error, `uploading file "${fileData.name}"`, {
+      saEmail,
+      folderId,
+    });
   }
 }
