@@ -71,7 +71,7 @@ function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
   const credentials = getCredentials();
   const auth = new google.auth.GoogleAuth({
     credentials,
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    scopes: ['https://www.googleapis.com/auth/drive'], // FIX: Broaden scope
   });
   return {
     drive: google.drive({ version: 'v3', auth }),
