@@ -64,8 +64,12 @@ function getCredentials(): ServiceAccountCreds {
 }
 
 // Log diagnostic info once at server start
-const credsForLog = getCredentials();
-console.info(`[Assignly] Google Drive integration loaded. Using SA: ${credsForLog.client_email}, Parent Folder ID Prefix: ${process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID?.substring(0, 6)}...`);
+try {
+  const credsForLog = getCredentials();
+  console.info(`[Assignly] Google Drive integration loaded. Using SA: ${credsForLog.client_email}, Parent Folder ID: ${process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID}`);
+} catch (error) {
+  console.error('[Assignly] Google Drive integration failed to load:', error);
+}
 
 
 /**
@@ -76,7 +80,10 @@ function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
   const credentials = getCredentials();
   const auth = new google.auth.GoogleAuth({
     credentials,
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    scopes: [
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive'
+    ],
   });
   return {
     drive: google.drive({ version: 'v3', auth }),
@@ -98,6 +105,7 @@ async function verifyParentFolderAccess(drive: drive_v3.Drive, parentId: string,
             fileId: parentId,
             fields: 'id, name, mimeType, trashed',
             supportsAllDrives: true,
+            supportsTeamDrives: true,
         });
 
         if (response.data.mimeType !== 'application/vnd.google-apps.folder') {
@@ -194,11 +202,27 @@ export async function createOrderFolder(orderId: string): Promise<string> {
       parents: [parentFolderId],
     };
 
-    const folder = await drive.files.create({
-      requestBody: fileMetadata,
-      fields: 'id',
-      supportsAllDrives: true,
-    });
+    // Try with supportsAllDrives first
+    let folder;
+    try {
+      folder = await drive.files.create({
+        requestBody: fileMetadata,
+        fields: 'id',
+        supportsAllDrives: true,
+        supportsTeamDrives: true,
+      });
+    } catch (error: any) {
+      // If that fails, try without supportsAllDrives (for regular drives)
+      if (error?.code === 403 || error?.response?.status === 403) {
+        console.log('Retrying folder creation without supportsAllDrives...');
+        folder = await drive.files.create({
+          requestBody: fileMetadata,
+          fields: 'id',
+        });
+      } else {
+        throw error;
+      }
+    }
     
     return folder.data.id!;
   } catch (error) {
@@ -235,12 +259,29 @@ export async function uploadFileToDrive(
       body: Readable.from(Buffer.from(new Uint8Array(fileData.data))),
     };
 
-    const uploadedFile = await drive.files.create({
-      requestBody: fileMetadata,
-      media: media,
-      fields: 'id, webViewLink',
-      supportsAllDrives: true,
-    });
+    // Try with supportsAllDrives first, fallback if needed
+    let uploadedFile;
+    try {
+      uploadedFile = await drive.files.create({
+        requestBody: fileMetadata,
+        media: media,
+        fields: 'id, webViewLink',
+        supportsAllDrives: true,
+        supportsTeamDrives: true,
+      });
+    } catch (error: any) {
+      // If that fails, try without supportsAllDrives (for regular drives)
+      if (error?.code === 403 || error?.response?.status === 403) {
+        console.log('Retrying file upload without supportsAllDrives...');
+        uploadedFile = await drive.files.create({
+          requestBody: fileMetadata,
+          media: media,
+          fields: 'id, webViewLink',
+        });
+      } else {
+        throw error;
+      }
+    }
 
     fileId = uploadedFile.data.id!;
     if (!fileId) {
