@@ -254,3 +254,100 @@ export async function uploadFileToDrive(
     throw handleGoogleApiError(error, `uploading file "${fileData.name}"`);
   }
 }
+
+/**
+ * Test result interface for Google Drive setup validation
+ */
+export interface TestResult {
+  name: string;
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Tests the Google Drive integration setup by running various validation checks
+ * @returns {Promise<TestResult[]>} Array of test results
+ */
+export async function testGoogleDriveSetup(): Promise<TestResult[]> {
+  const results: TestResult[] = [];
+  
+  // Test 1: Check if environment variables are set
+  try {
+    const credentials = getCredentials();
+    results.push({
+      name: 'Environment Variables',
+      success: true,
+      message: `Credentials loaded successfully. Service Account: ${credentials.client_email}`
+    });
+  } catch (error) {
+    results.push({
+      name: 'Environment Variables',
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to load credentials'
+    });
+    return results; // Stop here if credentials are missing
+  }
+
+  // Test 2: Check parent folder access
+  try {
+    const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID!;
+    const { drive, saEmail } = getDriveClient();
+    await verifyParentFolderAccess(drive, parentFolderId, saEmail);
+    results.push({
+      name: 'Parent Folder Access',
+      success: true,
+      message: `Successfully accessed parent folder: ${parentFolderId.substring(0, 10)}...`
+    });
+  } catch (error) {
+    results.push({
+      name: 'Parent Folder Access',
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to access parent folder'
+    });
+  }
+
+  // Test 3: Test folder creation
+  try {
+    const testOrderId = `test-${Date.now()}`;
+    const folderId = await createOrderFolder(testOrderId);
+    results.push({
+      name: 'Folder Creation',
+      success: true,
+      message: `Successfully created test folder: ${folderId.substring(0, 10)}...`
+    });
+  } catch (error) {
+    results.push({
+      name: 'Folder Creation',
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to create test folder'
+    });
+  }
+
+  // Test 4: Test file upload (with a small test file)
+  try {
+    const testOrderId = `test-upload-${Date.now()}`;
+    const folderId = await createOrderFolder(testOrderId);
+    
+    const testFile: SerializableFile = {
+      name: 'test.txt',
+      type: 'text/plain',
+      size: 5,
+      data: Array.from(new TextEncoder().encode('test'))
+    };
+    
+    const uploadResult = await uploadFileToDrive(testFile, folderId);
+    results.push({
+      name: 'File Upload',
+      success: true,
+      message: `Successfully uploaded test file: ${uploadResult.id.substring(0, 10)}...`
+    });
+  } catch (error) {
+    results.push({
+      name: 'File Upload',
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to upload test file'
+    });
+  }
+
+  return results;
+}
