@@ -76,7 +76,7 @@ function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
   const credentials = getCredentials();
   const auth = new google.auth.GoogleAuth({
     credentials,
-    scopes: ['https://www.googleapis.com/auth/drive'],
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
   });
   return {
     drive: google.drive({ version: 'v3', auth }),
@@ -132,7 +132,8 @@ function handleGoogleApiError(error: any, context: string): Error {
   console.error(`Google Drive API Error during ${context}:`, {
       status: status,
       message: originalMessage,
-      errors: error.errors
+      errors: error.errors,
+      details: error.details
   });
 
   if (status === 401) {
@@ -141,8 +142,24 @@ function handleGoogleApiError(error: any, context: string): Error {
     );
   }
   if (status === 403) {
+    // More specific 403 error messages
+    if (originalMessage.includes('insufficient authentication scopes')) {
+      return new Error(
+        'Insufficient authentication scopes. The service account needs the Google Drive API scope. Please check your GCP project settings.'
+      );
+    }
+    if (originalMessage.includes('insufficientFilePermissions')) {
+      return new Error(
+        'Permission denied. The parent folder must be shared with the service account email as an "Editor". Check the folder sharing settings in Google Drive.'
+      );
+    }
+    if (originalMessage.includes('domainPolicy')) {
+      return new Error(
+        'Domain policy restriction. Your organization may have policies preventing file sharing with service accounts. Contact your administrator.'
+      );
+    }
     return new Error(
-      'Permission denied. Please ensure the Google Drive API is enabled in your GCP project and the parent folder has been shared with the service account email as an "Editor".'
+      'Permission denied. Please ensure: 1) Google Drive API is enabled in your GCP project, 2) The parent folder is shared with the service account email as an "Editor", 3) The service account has the correct permissions.'
     );
   }
   if (status === 404) {
@@ -252,5 +269,90 @@ export async function uploadFileToDrive(
 
   } catch (error) {
     throw handleGoogleApiError(error, `uploading file "${fileData.name}"`);
+  }
+}
+
+/**
+ * Tests the Google Drive setup and provides diagnostic information.
+ * This function can be called to verify that everything is configured correctly.
+ * @returns {Promise<object>} Diagnostic information about the setup.
+ */
+export async function testGoogleDriveSetup(): Promise<{
+  success: boolean;
+  message: string;
+  details: any;
+}> {
+  try {
+    const { drive, saEmail } = getDriveClient();
+    const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID!;
+
+    // Test 1: Verify parent folder access
+    const folderResponse = await drive.files.get({
+      fileId: parentFolderId,
+      fields: 'id, name, mimeType, trashed, permissions',
+      supportsAllDrives: true,
+    });
+
+    if (folderResponse.data.mimeType !== 'application/vnd.google-apps.folder') {
+      return {
+        success: false,
+        message: 'The specified GOOGLE_DRIVE_PARENT_FOLDER_ID does not point to a folder.',
+        details: { mimeType: folderResponse.data.mimeType }
+      };
+    }
+
+    if (folderResponse.data.trashed) {
+      return {
+        success: false,
+        message: 'The specified parent folder is in the trash. Please restore it.',
+        details: { trashed: true }
+      };
+    }
+
+    // Test 2: Try to create a test folder
+    const testFolderMetadata = {
+      name: `TEST_FOLDER_${Date.now()}`,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentFolderId],
+    };
+
+    const testFolder = await drive.files.create({
+      requestBody: testFolderMetadata,
+      fields: 'id',
+      supportsAllDrives: true,
+    });
+
+    // Clean up test folder
+    await drive.files.delete({
+      fileId: testFolder.data.id!,
+      supportsAllDrives: true,
+    });
+
+    return {
+      success: true,
+      message: 'Google Drive setup is working correctly!',
+      details: {
+        serviceAccountEmail: saEmail,
+        parentFolderId: parentFolderId,
+        parentFolderName: folderResponse.data.name,
+        testFolderCreated: true
+      }
+    };
+
+  } catch (error: any) {
+    const status = error?.code || error?.response?.status;
+    return {
+      success: false,
+      message: `Google Drive setup test failed: ${error.message}`,
+      details: {
+        status: status,
+        error: error.message,
+        suggestion: status === 403 
+          ? 'Make sure the parent folder is shared with the service account as an "Editor"'
+          : status === 404
+          ? 'Check that the GOOGLE_DRIVE_PARENT_FOLDER_ID is correct'
+          : 'Check your Google Drive API configuration'
+      }
+    };
   }
 }
