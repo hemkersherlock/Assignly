@@ -71,7 +71,7 @@ function getDriveClient(): { drive: drive_v3.Drive, saEmail: string } {
   const credentials = getCredentials();
   const auth = new google.auth.GoogleAuth({
     credentials,
-    scopes: ['https://www.googleapis.com/auth/drive'], // FIX: Broaden scope
+    scopes: ['https://www.googleapis.com/auth/drive'],
   });
   return {
     drive: google.drive({ version: 'v3', auth }),
@@ -219,6 +219,7 @@ export async function uploadFileToDrive(
       throw new Error('File ID was not returned from Google Drive API.');
     }
 
+    // Attempt to make the file public, but do not fail the whole upload if this step fails.
     try {
       await drive.permissions.create({
         fileId: fileId,
@@ -229,8 +230,9 @@ export async function uploadFileToDrive(
         supportsAllDrives: true,
       });
     } catch (permError: any) {
+      // This is the key fix. We log a warning instead of throwing an error.
       console.warn(
-        `Warning: Could not set public permissions for file "${fileData.name}" (ID: ${fileId}). This may be due to shared drive policies. The file was still uploaded.`,
+        `Warning: Could not set public permissions for file "${fileData.name}" (ID: ${fileId}). This may be due to shared drive policies. The file was still uploaded successfully.`,
         permError.message
       );
     }
