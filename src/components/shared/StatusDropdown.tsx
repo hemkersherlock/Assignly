@@ -11,7 +11,7 @@ import {
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type OrderStatus = "pending" | "writing" | "on the way";
+export type OrderStatus = "pending" | "writing" | "on the way" | "delivered";
 
 interface StatusDropdownProps {
   currentStatus: string;
@@ -32,8 +32,13 @@ const statusConfig = {
   },
   "on the way": {
     label: "On the Way",
-    color: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300", 
+    color: "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300", 
     icon: "🚀"
+  },
+  delivered: {
+    label: "Delivered",
+    color: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300",
+    icon: "✅"
   }
 };
 

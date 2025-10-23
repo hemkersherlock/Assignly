@@ -20,14 +20,11 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StatusDropdown, OrderStatus } from "@/components/shared/StatusDropdown";
 import { format, formatDistanceToNow } from "date-fns";
-import { Download, Search, Filter, X, MoreHorizontal, Trash2 } from "lucide-react";
+import { Download, Search, Filter, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface RealOrder {
@@ -56,13 +53,7 @@ export default function AdminAllOrdersPage() {
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [orderTypeFilter, setOrderTypeFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  
-  // Delete order states
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [orderToDelete, setOrderToDelete] = useState<RealOrder | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [timeFilter, setTimeFilter] = useState<string>("all");
   
   const { firestore } = useFirebase();
   const { toast } = useToast();
@@ -161,68 +152,6 @@ export default function AdminAllOrdersPage() {
     }
   };
 
-  const handleDeleteOrder = (order: RealOrder) => {
-    setOrderToDelete(order);
-    setDeleteConfirmation("");
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDeleteOrder = async () => {
-    if (!orderToDelete || deleteConfirmation !== "DELETE") {
-      toast({
-        variant: "destructive",
-        title: "Invalid Confirmation",
-        description: "Please type 'DELETE' exactly to confirm deletion.",
-      });
-      return;
-    }
-
-    setIsDeleting(true);
-    try {
-      console.log('Deleting order with data:', {
-        orderId: orderToDelete.id,
-        studentId: orderToDelete.studentId,
-        pageCount: orderToDelete.pageCount,
-        pageCountType: typeof orderToDelete.pageCount
-      });
-      
-      // For now, just delete from Firestore and skip Cloudinary (due to API timeouts)
-      console.log('Deleting order from Firestore (Cloudinary cleanup skipped due to API timeouts)...');
-      
-      // Import Firebase functions
-      const { doc, deleteDoc } = await import('firebase/firestore');
-      
-      // Delete the order document
-      const orderRef = doc(firestore, `users/${orderToDelete.studentId}/orders/${orderToDelete.id}`);
-      await deleteDoc(orderRef);
-      console.log('Order deleted from Firestore successfully');
-
-      console.log('⚠️ Cloudinary files not deleted due to API timeouts - please delete manually from Cloudinary dashboard');
-
-      // Update local state
-      setOrders(prev => prev.filter(order => order.id !== orderToDelete.id));
-
-      toast({
-        title: "Order Deleted Successfully",
-        description: `Order ${orderToDelete.id} deleted from database. ⚠️ Cloudinary files need manual cleanup due to API timeouts.`,
-      });
-
-      setDeleteDialogOpen(false);
-      setOrderToDelete(null);
-      setDeleteConfirmation("");
-
-    } catch (error) {
-      console.error('Error deleting order:', error);
-      toast({
-        variant: "destructive",
-        title: "Delete Failed",
-        description: "Failed to delete order. Please try again.",
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   // Filter orders based on search and filter criteria
   const filteredOrders = useMemo(() => {
     let filtered = orders;
@@ -239,13 +168,30 @@ export default function AdminAllOrdersPage() {
       filtered = filtered.filter(order => order.orderType === orderTypeFilter);
     }
 
-    // Filter by status
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(order => order.status === statusFilter);
+    // Filter by time
+    if (timeFilter !== "all") {
+      const now = new Date();
+      filtered = filtered.filter(order => {
+        if (!order.createdAt) return false;
+        
+        const orderDate = order.createdAt instanceof Date ? order.createdAt : order.createdAt.toDate();
+        const diffHours = (now.getTime() - orderDate.getTime()) / (1000 * 60 * 60);
+        
+        switch (timeFilter) {
+          case "today":
+            return diffHours < 24;
+          case "week":
+            return diffHours < 168; // 7 days
+          case "month":
+            return diffHours < 720; // 30 days
+          default:
+            return true;
+        }
+      });
     }
 
     return filtered;
-  }, [orders, searchTerm, orderTypeFilter, statusFilter]);
+  }, [orders, searchTerm, orderTypeFilter, timeFilter]);
 
   if (loading) {
     return (
@@ -349,23 +295,22 @@ export default function AdminAllOrdersPage() {
               </SelectContent>
             </Select>
 
-            {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            {/* Time Filter */}
+            <Select value={timeFilter} onValueChange={setTimeFilter}>
               <SelectTrigger className="w-full sm:w-[160px]">
-                <SelectValue placeholder="Order Status" />
+                <SelectValue placeholder="Time Period" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">⏳ Pending</SelectItem>
-                <SelectItem value="writing">✍️ Writing</SelectItem>
-                <SelectItem value="on the way">🚀 On the Way</SelectItem>
-                <SelectItem value="delivered">✅ Delivered</SelectItem>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="week">This Week</SelectItem>
+                <SelectItem value="month">This Month</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Active Filters Display */}
-          {(searchTerm || orderTypeFilter !== "all" || statusFilter !== "all") && (
+          {(searchTerm || orderTypeFilter !== "all" || timeFilter !== "all") && (
             <div className="flex flex-wrap gap-2">
               {searchTerm && (
                 <Badge variant="secondary" className="flex items-center gap-1">
@@ -385,12 +330,12 @@ export default function AdminAllOrdersPage() {
                   />
                 </Badge>
               )}
-              {statusFilter !== "all" && (
+              {timeFilter !== "all" && (
                 <Badge variant="secondary" className="flex items-center gap-1">
-                  Status: {statusFilter}
+                  Time: {timeFilter}
                   <X 
                     className="h-3 w-3 cursor-pointer" 
-                    onClick={() => setStatusFilter("all")}
+                    onClick={() => setTimeFilter("all")}
                   />
                 </Badge>
               )}
@@ -407,14 +352,13 @@ export default function AdminAllOrdersPage() {
               <TableHead>Status</TableHead>
               <TableHead>Submitted</TableHead>
               <TableHead>Files</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredOrders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  {searchTerm || orderTypeFilter !== "all" || statusFilter !== "all" 
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  {searchTerm || orderTypeFilter !== "all" || timeFilter !== "all" 
                     ? "No orders match your filters" 
                     : "No orders found"
                   }
@@ -488,73 +432,13 @@ export default function AdminAllOrdersPage() {
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteOrder(order)}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete Order
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </CardContent>
-      
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-red-600">Delete Order</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone. This will permanently delete the order{" "}
-              <span className="font-mono font-semibold">{orderToDelete?.id}</span>{" "}
-              and restore {orderToDelete?.pageCount} credits to the student.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Type <span className="font-mono font-semibold text-red-600">DELETE</span> to confirm:
-              </label>
-              <Input
-                value={deleteConfirmation}
-                onChange={(e) => setDeleteConfirmation(e.target.value)}
-                placeholder="Type DELETE here"
-                className="font-mono"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDeleteOrder}
-              disabled={deleteConfirmation !== "DELETE" || isDeleting}
-            >
-              {isDeleting ? "Deleting..." : "Delete Order"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }
+

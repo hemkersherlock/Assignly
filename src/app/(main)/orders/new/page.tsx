@@ -37,6 +37,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { createOrderFolder, uploadFileToCloudinary } from "@/lib/cloudinary";
+import { generateShortOrderId } from "@/lib/order-utils";
 
 // Configure pdf.js worker
 if (typeof window !== "undefined") {
@@ -268,14 +269,16 @@ export default function NewOrderPage() {
         description: "Your order is being processed.",
       });
 
+      // Generate a short, user-friendly order ID
+      const orderId = generateShortOrderId();
+      
       const ordersCollectionRef = collection(
         firestore,
         "users",
         appUser.id,
         "orders"
       );
-      const newOrderRef = doc(ordersCollectionRef); // Create new doc with id
-      const orderId = newOrderRef.id;
+      const newOrderRef = doc(ordersCollectionRef, orderId); // Use our custom ID
 
       // 1. Create a folder for the order in Cloudinary (Server Action)
       const cloudinaryFolder = await createOrderFolder(orderId);

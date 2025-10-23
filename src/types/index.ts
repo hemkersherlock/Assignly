@@ -43,7 +43,7 @@ export interface Order {
   originalFiles: { name: string, url: string }[];
   orderType: "assignment" | "practical";
   pageCount: number;
-  status: "pending" | "writing" | "on the way";
+  status: "pending" | "writing" | "on the way" | "delivered";
   completedFileUrl: string | null;
   createdAt: any;
   startedAt: any | null;
