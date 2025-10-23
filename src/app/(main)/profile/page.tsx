@@ -27,13 +27,9 @@ import Link from "next/link";
 import type { User as UserType } from "@/types";
 
 export default function ProfilePage() {
-  console.log('🔍 Profile page component loaded');
-  
   const { user, setAppUser } = useAuthContext();
   const { firestore } = useFirebase();
   const { toast } = useToast();
-  
-  console.log('🔍 Profile page loaded, user:', user);
   
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -57,7 +53,6 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     if (!user) {
-      console.error('❌ No user data available for profile update');
       toast({
         variant: "destructive",
         title: "Error",
@@ -68,7 +63,6 @@ export default function ProfilePage() {
     
     setIsLoading(true);
     try {
-      console.log('🔍 Updating profile for user:', user.id);
       const userRef = doc(firestore, "users", user.id);
       await updateDoc(userRef, {
         whatsappNo: formData.whatsappNo,
@@ -76,8 +70,6 @@ export default function ProfilePage() {
         year: formData.year,
         sem: formData.sem,
       });
-
-      console.log('✅ Profile updated successfully');
 
       // Update local state
       setAppUser({
@@ -93,7 +85,6 @@ export default function ProfilePage() {
         description: "Your profile has been successfully updated.",
       });
     } catch (error) {
-      console.error("❌ Error updating profile:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -118,107 +109,165 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold">Edit Profile</h1>
-          <p className="text-muted-foreground">Update your contact and academic details</p>
+    <div className="min-h-screen bg-gray-50/50">
+      {/* Header */}
+      <div className="bg-white border-b">
+        <div className="max-w-4xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Dashboard
+                </Link>
+              </Button>
+              <div className="h-6 w-px bg-border" />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Edit Profile</h1>
+                <p className="text-sm text-muted-foreground">Update your contact and academic details</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <Card className="shadow-subtle">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Basic Information
-          </CardTitle>
-          <CardDescription>Update your contact and academic details</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* WhatsApp */}
-          <div>
-            <Label htmlFor="whatsapp">WhatsApp Number *</Label>
-            <Input
-              id="whatsapp"
-              placeholder="Enter your WhatsApp number"
-              value={formData.whatsappNo}
-              onChange={(e) => setFormData({ ...formData, whatsappNo: e.target.value })}
-            />
-            <p className="text-sm text-muted-foreground mt-1">
-              We'll use this to contact you about your orders
-            </p>
-          </div>
-          
-          {/* Section */}
-          <div>
-            <Label htmlFor="section">Section *</Label>
-            <Input
-              id="section"
-              placeholder="Enter your section (e.g., A, B, C)"
-              value={formData.section}
-              onChange={(e) => setFormData({ ...formData, section: e.target.value })}
-            />
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Profile Form */}
+          <div className="lg:col-span-2">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <User className="h-5 w-5" />
+                  Personal Information
+                </CardTitle>
+                <CardDescription>
+                  Keep your information up to date for better service
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* WhatsApp */}
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp" className="text-sm font-medium">
+                    WhatsApp Number *
+                  </Label>
+                  <Input
+                    id="whatsapp"
+                    placeholder="+91 9876543210"
+                    value={formData.whatsappNo}
+                    onChange={(e) => setFormData({ ...formData, whatsappNo: e.target.value })}
+                    className="h-11"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    We'll use this to contact you about your orders
+                  </p>
+                </div>
+                
+                {/* Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="section" className="text-sm font-medium">
+                    Section *
+                  </Label>
+                  <Input
+                    id="section"
+                    placeholder="A, B, C, etc."
+                    value={formData.section}
+                    onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                    className="h-11"
+                  />
+                </div>
+
+                {/* Year and Semester */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="year" className="text-sm font-medium">
+                      Year *
+                    </Label>
+                    <Select value={formData.year} onValueChange={(value: UserType["year"]) => setFormData({ ...formData, year: value })}>
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Select year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1st Year">1st Year</SelectItem>
+                        <SelectItem value="2nd Year">2nd Year</SelectItem>
+                        <SelectItem value="3rd Year">3rd Year</SelectItem>
+                        <SelectItem value="4th Year">4th Year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="sem" className="text-sm font-medium">
+                      Semester *
+                    </Label>
+                    <Select value={formData.sem} onValueChange={(value: UserType["sem"]) => setFormData({ ...formData, sem: value })}>
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Select semester" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1st Sem">1st Sem</SelectItem>
+                        <SelectItem value="2nd Sem">2nd Sem</SelectItem>
+                        <SelectItem value="3rd Sem">3rd Sem</SelectItem>
+                        <SelectItem value="4th Sem">4th Sem</SelectItem>
+                        <SelectItem value="5th Sem">5th Sem</SelectItem>
+                        <SelectItem value="6th Sem">6th Sem</SelectItem>
+                        <SelectItem value="7th Sem">7th Sem</SelectItem>
+                        <SelectItem value="8th Sem">8th Sem</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Year and Semester */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="year">Year *</Label>
-              <Select value={formData.year} onValueChange={(value: UserType["year"]) => setFormData({ ...formData, year: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your year" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1st Year">1st Year</SelectItem>
-                  <SelectItem value="2nd Year">2nd Year</SelectItem>
-                  <SelectItem value="3rd Year">3rd Year</SelectItem>
-                  <SelectItem value="4th Year">4th Year</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="sem">Semester *</Label>
-              <Select value={formData.sem} onValueChange={(value: UserType["sem"]) => setFormData({ ...formData, sem: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your semester" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1st Sem">1st Sem</SelectItem>
-                  <SelectItem value="2nd Sem">2nd Sem</SelectItem>
-                  <SelectItem value="3rd Sem">3rd Sem</SelectItem>
-                  <SelectItem value="4th Sem">4th Sem</SelectItem>
-                  <SelectItem value="5th Sem">5th Sem</SelectItem>
-                  <SelectItem value="6th Sem">6th Sem</SelectItem>
-                  <SelectItem value="7th Sem">7th Sem</SelectItem>
-                  <SelectItem value="8th Sem">8th Sem</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Account Info */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Account Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p>
+                  <p className="text-sm font-medium">{user.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p>
+                  <p className="text-sm font-medium">{user.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Credits</p>
+                  <p className="text-sm font-medium text-green-600">{user.creditsRemaining}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Save Button */}
+            <div className="sticky top-6">
+              <Button 
+                onClick={handleSave} 
+                disabled={isLoading} 
+                className="w-full h-11"
+                size="lg"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isLoading} className="min-w-[120px]">
-          {isLoading ? (
-            <>
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Save Changes
-            </>
-          )}
-        </Button>
+        </div>
       </div>
     </div>
   );
